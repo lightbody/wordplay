@@ -179,18 +179,24 @@ pub async fn attach_opponent(
         .execute(&mut **tx)
         .await?;
 
-    // The creator always makes the opening move at creation time, so it's
-    // the opponent's turn as soon as they join.
+    // If the creator already played the opening move, it's the opponent's
+    // turn; otherwise the creator still owes the opening move.
+    let next_player = if game.move_count >= 1 {
+        opponent_id
+    } else {
+        game.creator_id.as_str()
+    };
     let updated = sqlx::query_as::<_, Game>(&format!(
         "UPDATE games SET status = 'active', opponent_id = $1, opponent_username = $2,
-             opponent_rack_count = $3, current_player_id = $1,
-             tiles_remaining = $4, updated_at = now()
-         WHERE id = $5
+             opponent_rack_count = $3, current_player_id = $4,
+             tiles_remaining = $5, updated_at = now()
+         WHERE id = $6
          RETURNING {GAME_COLUMNS}"
     ))
     .bind(opponent_id)
     .bind(opponent_username)
     .bind(rack.chars().count() as i32)
+    .bind(next_player)
     .bind(bag.chars().count() as i32)
     .bind(game.id)
     .fetch_one(&mut **tx)

@@ -1,0 +1,125 @@
+name: Preview Environment
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, closed]
+
+concurrency:
+  group: preview-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+env:
+  NEON_PROJECT_ID: ${{ secrets.NEON_PROJECT_ID }}
+  NEON_BRANCH: preview/pr-${{ github.event.pull_request.number }}
+  BACKEND_APP: plightbo-wordplay-backend-pr-${{ github.event.pull_request.number }}
+  ELECTRIC_APP: plightbo-wordplay-electric-pr-${{ github.event.pull_request.number }}
+
+jobs:
+  deploy:
+    name: Deploy preview
+    if: github.event.action != 'closed'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create Neon branch
+        id: neon
+        uses: neondatabase/create-branch-action@v6
+        with:
+          project_id: ${{ secrets.NEON_PROJECT_ID }}
+          branch_name: ${{ env.NEON_BRANCH }}
+          api_key: ${{ secrets.NEON_API_KEY }}
+
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+
+      - name: Ensure Fly apps exist
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+        run: |
+          for app in "$BACKEND_APP" "$ELECTRIC_APP"; do
+            if ! flyctl apps list --json | jq -e --arg n "$app" '.[] | select(.Name == $n)' > /dev/null; then
+              flyctl apps create "$app" --org "${{ secrets.FLY_ORG }}"
+            fi
+          done
+
+      - name: Deploy Electric
+        working-directory: electric
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+        run: |
+          # Electric needs the direct (non-pooled) connection string — logical
+          # replication does not work through Neon's connection pooler.
+          flyctl secrets set --app "$ELECTRIC_APP" --stage \
+            DATABASE_URL='${{ steps.neon.outputs.db_url }}'
+          flyctl deploy --app "$ELECTRIC_APP" --remote-only
+
+      - name: Deploy backend
+        working-directory: backend
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+        run: |
+          # ALLOWED_ORIGIN=* is preview-only: the app never uses credentialed
+          # CORS requests (Bearer-header auth), so the wildcard is safe and
+          # avoids predicting the Cloudflare Pages preview URL slug.
+          flyctl secrets set --app "$BACKEND_APP" --stage \
+            DATABASE_URL='${{ steps.neon.outputs.db_url_pooled }}' \
+            WORKOS_JWKS_URL='${{ secrets.WORKOS_JWKS_URL }}' \
+            ELECTRIC_URL="https://$ELECTRIC_APP.fly.dev" \
+            PUBLIC_APP_URL="https://wordplay.lightbody.net" \
+            ALLOWED_ORIGIN='*'
+          flyctl deploy --app "$BACKEND_APP" --remote-only
+
+      - name: Update preview environment comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { upsertPreviewComment } = require('./.github/scripts/preview-comment.js');
+            await upsertPreviewComment(github, context, {
+              backendUrl: `https://${process.env.BACKEND_APP}.fly.dev/health`,
+              electricUrl: `https://${process.env.ELECTRIC_APP}.fly.dev/v1/health`,
+              neonBranch: process.env.NEON_BRANCH,
+              neonProjectId: process.env.NEON_PROJECT_ID,
+            });
+
+  cleanup:
+    name: Tear down preview
+    if: github.event.action == 'closed'
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+
+      - name: Destroy Fly apps
+        continue-on-error: true
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+        run: |
+          flyctl apps destroy "$BACKEND_APP" --yes || true
+          flyctl apps destroy "$ELECTRIC_APP" --yes || true
+
+      - name: Delete Neon branch
+        continue-on-error: true
+        uses: neondatabase/delete-branch-action@v3
+        with:
+          project_id: ${{ secrets.NEON_PROJECT_ID }}
+          branch: ${{ env.NEON_BRANCH }}
+          api_key: ${{ secrets.NEON_API_KEY }}
+
+      - name: Delete Cloudflare Pages preview deployments
+        continue-on-error: true
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { deleteCloudflarePreviewDeployments } = require('./.github/scripts/cleanup-cf-pages.js');
+            await deleteCloudflarePreviewDeployments({
+              accountId: '${{ secrets.CLOUDFLARE_ACCOUNT_ID }}',
+              apiToken: '${{ secrets.CLOUDFLARE_API_TOKEN }}',
+              projectName: 'wordplay-frontend',
+              branch: '${{ github.head_ref }}',
+            });

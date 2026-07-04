@@ -42,21 +42,29 @@ pub async fn make_move(
     if !is_participant {
         return Err(AppError::Forbidden);
     }
-    if game.status != "active" {
+    // The creator may play the opening move while still awaiting an opponent.
+    let opening_solo =
+        game.status == "awaiting_opponent" && am_creator && game.opponent_id.is_none();
+    if game.status != "active" && !opening_solo {
         return Err(AppError::conflict("game_not_active"));
     }
     if game.current_player_id.as_deref() != Some(&user_id) {
         return Err(AppError::conflict("not_your_turn"));
     }
 
+    // Opponent id (only meaningful once the game is active).
     let opponent_id = if am_creator {
-        game.opponent_id.clone().expect("active game has opponent")
+        game.opponent_id.clone()
     } else {
-        game.creator_id.clone()
+        Some(game.creator_id.clone())
     };
 
-    // --- Resign short-circuits everything ---
+    // --- Resign short-circuits everything (active games only) ---
     if matches!(req, MoveRequest::Resign) {
+        if opening_solo {
+            return Err(AppError::conflict("game_not_active"));
+        }
+        let winner = opponent_id.clone().expect("active game has opponent");
         let move_number = game.move_count + 1;
         insert_move(&mut tx, id, &user_id, move_number, "resign", None, None, None, 0).await?;
         let finished = sqlx::query_as::<_, Game>(&format!(
@@ -64,7 +72,7 @@ pub async fn make_move(
                  winner_id = $1, current_player_id = NULL, move_count = $2, updated_at = now()
              WHERE id = $3 RETURNING {GAME_COLUMNS}"
         ))
-        .bind(&opponent_id)
+        .bind(&winner)
         .bind(move_number)
         .bind(id)
         .fetch_one(&mut *tx)
@@ -128,26 +136,35 @@ pub async fn make_move(
         MoveRequest::Resign => unreachable!(),
     }
 
-    let next_player = opponent_id.clone();
-    let next_rack_empty: bool = {
-        let n: Option<i64> = sqlx::query_scalar(
-            "SELECT length(rack) FROM game_players WHERE game_id = $1 AND user_id = $2",
+    // Resolve the next turn and end-game state. For the opening solo move
+    // there is no opponent yet, so the turn passes to nobody (NULL) and the
+    // game stays in awaiting_opponent until someone joins.
+    let turn = if opening_solo {
+        endgame::TurnOutcome {
+            final_moves_remaining: game.final_moves_remaining,
+            scoreless_streak: if move_scored { 0 } else { game.scoreless_streak + 1 },
+            finished: None,
+        }
+    } else {
+        let next_player = opponent_id.clone().expect("active game has opponent");
+        let next_rack_empty: bool = {
+            let n: Option<i64> = sqlx::query_scalar(
+                "SELECT length(rack) FROM game_players WHERE game_id = $1 AND user_id = $2",
+            )
+            .bind(id)
+            .bind(&next_player)
+            .fetch_optional(&mut *tx)
+            .await?;
+            n.map(|l| l == 0).unwrap_or(false)
+        };
+        endgame::evaluate(
+            bag.is_empty(),
+            game.final_moves_remaining,
+            game.scoreless_streak,
+            move_scored,
+            next_rack_empty,
         )
-        .bind(id)
-        .bind(&next_player)
-        .fetch_optional(&mut *tx)
-        .await?;
-        n.map(|l| l == 0).unwrap_or(false)
     };
-
-    let bag_empty = bag.is_empty();
-    let turn = endgame::evaluate(
-        bag_empty,
-        game.final_moves_remaining,
-        game.scoreless_streak,
-        move_scored,
-        next_rack_empty,
-    );
 
     // Persist the mover's rack and the bag.
     sqlx::query("UPDATE game_players SET rack = $1, updated_at = now() WHERE game_id = $2 AND user_id = $3")
@@ -175,11 +192,13 @@ pub async fn make_move(
         ("opponent_score", "opponent_rack_count")
     };
 
-    // Apply the shared game-state update.
-    let current_player = if turn.finished.is_some() {
+    // Apply the shared game-state update. Turn passes to the opponent
+    // unless the game just finished, or this was the opening solo move
+    // (no opponent to hand off to yet).
+    let current_player = if turn.finished.is_some() || opening_solo {
         None
     } else {
-        Some(next_player.clone())
+        opponent_id.clone()
     };
 
     sqlx::query(&format!(
