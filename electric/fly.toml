@@ -1,0 +1,28 @@
+app = "plightbo-wordplay-electric"
+primary_region = "iad"
+
+[build]
+  image = "electricsql/electric:latest"
+
+[env]
+  # Fly terminates TLS before forwarding, so Electric itself runs plain HTTP.
+  ELECTRIC_INSECURE = "true"
+
+[http_service]
+  internal_port = 3000
+  force_https = true
+  auto_stop_machines = true
+  auto_start_machines = true
+  min_machines_running = 0
+
+  [[http_service.checks]]
+    grace_period = "15s"
+    interval = "30s"
+    method = "GET"
+    path = "/v1/health"
+    timeout = "5s"
+
+[[vm]]
+  cpu_kind = "shared"
+  cpus = 1
+  memory_mb = 512
