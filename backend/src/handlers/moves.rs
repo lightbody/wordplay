@@ -148,7 +148,7 @@ pub async fn make_move(
     } else {
         let next_player = opponent_id.clone().expect("active game has opponent");
         let next_rack_empty: bool = {
-            let n: Option<i64> = sqlx::query_scalar(
+            let n: Option<i32> = sqlx::query_scalar(
                 "SELECT length(rack) FROM game_players WHERE game_id = $1 AND user_id = $2",
             )
             .bind(id)
