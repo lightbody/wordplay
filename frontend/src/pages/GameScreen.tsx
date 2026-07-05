@@ -7,6 +7,7 @@ import { useApi, useProfile } from "../profile";
 import { useGamesShape, useMovesShape, useRacksShape } from "../shapes";
 import type { Game, PendingTile, PlacedTileDto } from "../types";
 import { Board } from "../components/Board";
+import { BoardViewport } from "../components/BoardViewport";
 import { Rack } from "../components/Rack";
 import { Spinner } from "../components/Spinner";
 import { ScoreBar } from "../components/ScoreBar";
@@ -178,13 +179,15 @@ export function GameScreen() {
 
       <LayoutGroup>
         <div className="board-wrap">
-          <Board
-            board={game.board}
-            pending={pending}
-            lastMove={lastMove}
-            interactive={myTurn && !finished}
-            onCellClick={placeOnCell}
-          />
+          <BoardViewport>
+            <Board
+              board={game.board}
+              pending={pending}
+              lastMove={lastMove}
+              interactive={myTurn && !finished}
+              onCellClick={placeOnCell}
+            />
+          </BoardViewport>
         </div>
 
         {finished ? (
