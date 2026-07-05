@@ -7,11 +7,13 @@ import { useApi, useProfile } from "../profile";
 import { useGamesShape, useMovesShape, useRacksShape } from "../shapes";
 import type { Game, PendingTile, PlacedTileDto } from "../types";
 import { Board } from "../components/Board";
+import { BoardViewport } from "../components/BoardViewport";
 import { Rack } from "../components/Rack";
 import { Spinner } from "../components/Spinner";
 import { ScoreBar } from "../components/ScoreBar";
 import { BlankPicker } from "../components/BlankPicker";
 import { SwapDialog } from "../components/SwapDialog";
+import { MoreMenu } from "../components/MoreMenu";
 import { SharePanel } from "../components/SharePanel";
 
 export function GameScreen() {
@@ -38,6 +40,7 @@ export function GameScreen() {
   const [order, setOrder] = useState<number[]>([]);
   const [blankFor, setBlankFor] = useState<{ row: number; col: number; rackIndex: number } | null>(null);
   const [swapOpen, setSwapOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -48,6 +51,31 @@ export function GameScreen() {
     setOrder(Array.from({ length: myRack.length }, (_, i) => i));
   }, [myRack]);
 
+  // iOS Safari ignores the viewport meta's zoom restrictions and doesn't
+  // reliably honor touch-action:none on ancestors for the pinch/double-tap
+  // zoom gesture specifically, so block it directly at the source: Safari's
+  // legacy gesturestart event (fires before any native pinch-zoom), and any
+  // 2+-finger touch outside the board (covers Chrome/Android too). Only
+  // BoardViewport's own custom pinch handling should be able to zoom
+  // anything on this screen.
+  useEffect(() => {
+    const preventGesture = (e: Event) => e.preventDefault();
+    function blockMultiTouchOutsideBoard(e: TouchEvent) {
+      const target = e.target as Element | null;
+      if (e.touches.length > 1 && !target?.closest(".board-viewport")) {
+        e.preventDefault();
+      }
+    }
+    document.addEventListener("gesturestart", preventGesture);
+    document.addEventListener("touchstart", blockMultiTouchOutsideBoard, { passive: false });
+    document.addEventListener("touchmove", blockMultiTouchOutsideBoard, { passive: false });
+    return () => {
+      document.removeEventListener("gesturestart", preventGesture);
+      document.removeEventListener("touchstart", blockMultiTouchOutsideBoard);
+      document.removeEventListener("touchmove", blockMultiTouchOutsideBoard);
+    };
+  }, []);
+
   if (!game) return <Spinner full />;
 
   const meCreator = game.creator_id === profile.id;
@@ -55,6 +83,15 @@ export function GameScreen() {
   const finished = game.status === "finished";
   const awaiting = game.status === "awaiting_opponent";
   const usedIndices = new Set(pending.map((p) => p.rackIndex));
+  const hasPending = usedIndices.size > 0;
+
+  const phase: "finished" | "opening" | "sharing" | "playing" = finished
+    ? "finished"
+    : awaiting && game.move_count === 0 && meCreator
+      ? "opening"
+      : awaiting
+        ? "sharing"
+        : "playing";
 
   const lastMove = new Set<string>();
   const lastPlay = [...(moves ?? [])].reverse().find((m) => m.move_type === "play");
@@ -174,78 +211,79 @@ export function GameScreen() {
         <span />
       </header>
 
-      <ScoreBar game={game} meCreator={meCreator} myTurn={myTurn} />
-
       <LayoutGroup>
-        <div className="board-wrap">
-          <Board
-            board={game.board}
-            pending={pending}
-            lastMove={lastMove}
-            interactive={myTurn && !finished}
-            onCellClick={placeOnCell}
-          />
+        <div className="game-middle">
+          <ScoreBar game={game} meCreator={meCreator} myTurn={myTurn} />
+
+          <BoardViewport>
+            <Board
+              board={game.board}
+              pending={pending}
+              lastMove={lastMove}
+              interactive={myTurn && !finished}
+              onCellClick={placeOnCell}
+            />
+          </BoardViewport>
+
+          {phase === "sharing" && <SharePanel game={game} />}
+          {error && <div className="error-banner">{error}</div>}
         </div>
 
-        {finished ? (
-          <div className="game-actions">
-            <button className="btn btn-primary btn-block" onClick={() => navigate(`/games/${id}/summary`)}>
-              View summary
-            </button>
+        {phase !== "sharing" && (
+          <div className="bottom-bar">
+            {phase === "finished" ? (
+              <div className="game-actions">
+                <button className="btn btn-primary btn-block" onClick={() => navigate(`/games/${id}/summary`)}>
+                  View summary
+                </button>
+              </div>
+            ) : phase === "opening" ? (
+              <>
+                <RackArea
+                  rack={myRack}
+                  order={orderedRack}
+                  usedIndices={usedIndices}
+                  selected={selected}
+                  onSelect={selectRackTile}
+                />
+                <div className="game-actions">
+                  <button className="btn" onClick={hasPending ? recall : shuffle}>
+                    {hasPending ? "Recall" : "Shuffle"}
+                  </button>
+                  <button className="btn btn-primary" disabled={!canPlay} onClick={submitPlay}>
+                    Play opening {placement.valid ? `(${placement.score})` : ""}
+                  </button>
+                </div>
+                <p className="hint-text">Play your opening word, then invite an opponent.</p>
+              </>
+            ) : (
+              <>
+                <RackArea
+                  rack={myRack}
+                  order={orderedRack}
+                  usedIndices={usedIndices}
+                  selected={selected}
+                  onSelect={selectRackTile}
+                />
+                <div className="game-actions">
+                  <button className="btn" onClick={() => setMoreOpen(true)}>
+                    More
+                  </button>
+                  <button className="btn" disabled={!myTurn || busy} onClick={() => setSwapOpen(true)}>
+                    Swap
+                  </button>
+                  <button className="btn" onClick={hasPending ? recall : shuffle}>
+                    {hasPending ? "Recall" : "Shuffle"}
+                  </button>
+                  <button className="btn btn-primary" disabled={!canPlay} onClick={submitPlay}>
+                    Play {placement.valid && pending.length > 0 ? `(${placement.score})` : ""}
+                  </button>
+                </div>
+              </>
+            )}
           </div>
-        ) : awaiting && game.move_count === 0 && meCreator ? (
-          <>
-            <RackArea
-              rack={myRack}
-              order={orderedRack}
-              usedIndices={usedIndices}
-              selected={selected}
-              onSelect={selectRackTile}
-              onShuffle={shuffle}
-              onRecall={recall}
-              provisional={placement.valid ? placement.score : null}
-            />
-            <div className="game-actions">
-              <button className="btn btn-primary" disabled={!canPlay} onClick={submitPlay}>
-                Play opening {placement.valid ? `(${placement.score})` : ""}
-              </button>
-            </div>
-            <p className="hint-text">Play your opening word, then invite an opponent.</p>
-          </>
-        ) : awaiting ? (
-          <SharePanel game={game} />
-        ) : (
-          <>
-            <RackArea
-              rack={myRack}
-              order={orderedRack}
-              usedIndices={usedIndices}
-              selected={selected}
-              onSelect={selectRackTile}
-              onShuffle={shuffle}
-              onRecall={recall}
-              provisional={placement.valid ? placement.score : null}
-            />
-            <div className="game-actions">
-              <button className="btn btn-primary" disabled={!canPlay} onClick={submitPlay}>
-                Play {placement.valid && pending.length > 0 ? `(${placement.score})` : ""}
-              </button>
-              <button className="btn" disabled={!myTurn || busy} onClick={() => setSwapOpen(true)}>
-                Swap
-              </button>
-              <button className="btn" disabled={!myTurn || busy} onClick={doPass}>
-                Pass
-              </button>
-              <button className="btn btn-danger" disabled={busy} onClick={doResign}>
-                Resign
-              </button>
-            </div>
-            {!myTurn && <p className="hint-text">Waiting for @{meCreator ? game.opponent_username : game.creator_username}…</p>}
-          </>
         )}
       </LayoutGroup>
-
-      {error && <div className="error-banner">{error}</div>}
 
       {blankFor && <BlankPicker onChoose={chooseBlank} onCancel={() => setBlankFor(null)} />}
       {swapOpen && (
@@ -254,6 +292,21 @@ export function GameScreen() {
           disabled={game.tiles_remaining < 7}
           onSwap={doSwap}
           onCancel={() => setSwapOpen(false)}
+        />
+      )}
+      {moreOpen && (
+        <MoreMenu
+          passDisabled={!myTurn || busy}
+          resignDisabled={busy}
+          onPass={() => {
+            setMoreOpen(false);
+            doPass();
+          }}
+          onResign={() => {
+            setMoreOpen(false);
+            doResign();
+          }}
+          onClose={() => setMoreOpen(false)}
         />
       )}
     </div>
@@ -266,24 +319,18 @@ function RackArea({
   usedIndices,
   selected,
   onSelect,
-  onShuffle,
-  onRecall,
-  provisional,
 }: {
   rack: string;
   order: number[];
   usedIndices: Set<number>;
   selected: number | null;
   onSelect: (i: number) => void;
-  onShuffle: () => void;
-  onRecall: () => void;
-  provisional: number | null;
 }) {
   const reordered = order.map((i) => rack[i]).join("");
-  const remap = new Map(order.map((orig, pos) => [pos, orig]));
   const usedInDisplay = new Set(
     [...usedIndices].map((orig) => order.indexOf(orig)).filter((i) => i >= 0),
   );
+  const remap = new Map(order.map((orig, pos) => [pos, orig]));
   return (
     <div className="rack-area">
       <Rack
@@ -292,15 +339,6 @@ function RackArea({
         selectedIndex={selected === null ? null : order.indexOf(selected)}
         onSelect={(displayIndex) => onSelect(remap.get(displayIndex)!)}
       />
-      <div className="rack-controls">
-        <button className="btn btn-ghost btn-sm" onClick={onShuffle}>
-          Shuffle
-        </button>
-        <button className="btn btn-ghost btn-sm" onClick={onRecall}>
-          Recall
-        </button>
-        {provisional !== null && <span className="provisional">+{provisional}</span>}
-      </div>
     </div>
   );
 }
