@@ -8,6 +8,8 @@ interface BoardProps {
   lastMove?: Set<string>;
   onCellClick?: (row: number, col: number) => void;
   interactive?: boolean;
+  /** Cell currently hovered while dragging a tile in from the rack. */
+  dropTarget?: { row: number; col: number; valid: boolean } | null;
 }
 
 const PREMIUM_LABEL: Record<string, string> = {
@@ -17,7 +19,7 @@ const PREMIUM_LABEL: Record<string, string> = {
   TW: "3×W",
 };
 
-export function Board({ board, pending, lastMove, onCellClick, interactive }: BoardProps) {
+export function Board({ board, pending, lastMove, onCellClick, interactive, dropTarget }: BoardProps) {
   const pendingAt = new Map(pending.map((t) => [`${t.row},${t.col}`, t]));
 
   const cells = [];
@@ -29,6 +31,7 @@ export function Board({ board, pending, lastMove, onCellClick, interactive }: Bo
       const prem = premium(row, col);
       const isCenter = row === 7 && col === 7;
       const isLast = lastMove?.has(key);
+      const isDropTarget = dropTarget?.row === row && dropTarget?.col === col;
 
       let content = null;
       if (pend) {
@@ -55,12 +58,15 @@ export function Board({ board, pending, lastMove, onCellClick, interactive }: Bo
         <button
           key={key}
           type="button"
+          data-board-row={row}
+          data-board-col={col}
           className={[
             "cell",
             prem ? `cell-${prem.toLowerCase()}` : "",
             isCenter ? "cell-center" : "",
             isLast ? "cell-last" : "",
             content ? "cell-filled" : "",
+            isDropTarget ? (dropTarget!.valid ? "cell-drop-valid" : "cell-drop-invalid") : "",
           ]
             .filter(Boolean)
             .join(" ")}

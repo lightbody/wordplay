@@ -1,20 +1,24 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { LayoutGroup } from "motion/react";
 import { ApiError } from "../api";
 import { checkPlacement, isEmpty } from "../engine";
+import { moveItem } from "../dragMath";
 import { useApi, useProfile } from "../profile";
 import { useGamesShape, useMovesShape, useRacksShape } from "../shapes";
 import type { Game, PendingTile, PlacedTileDto } from "../types";
 import { Board } from "../components/Board";
 import { BoardViewport } from "../components/BoardViewport";
 import { Rack } from "../components/Rack";
+import { Tile } from "../components/Tile";
 import { Spinner } from "../components/Spinner";
 import { ScoreBar } from "../components/ScoreBar";
 import { BlankPicker } from "../components/BlankPicker";
 import { SwapDialog } from "../components/SwapDialog";
 import { MoreMenu } from "../components/MoreMenu";
 import { SharePanel } from "../components/SharePanel";
+
+type DropTarget = { type: "board"; row: number; col: number; valid: boolean } | { type: "rack"; index: number };
 
 export function GameScreen() {
   const { id } = useParams<{ id: string }>();
@@ -43,6 +47,17 @@ export function GameScreen() {
   const [moreOpen, setMoreOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [dragActive, setDragActive] = useState<{
+    displayIndex: number;
+    letter: string;
+    width: number;
+    height: number;
+    x: number;
+    y: number;
+  } | null>(null);
+  const [dropTarget, setDropTarget] = useState<DropTarget | null>(null);
+  const dragInfoRef = useRef<{ rackIndex: number; displayIndex: number } | null>(null);
+  const dragGhostRef = useRef<HTMLDivElement>(null);
 
   // Reset transient move state when the rack changes (i.e. after any move).
   useEffect(() => {
@@ -105,6 +120,15 @@ export function GameScreen() {
     setSelected((cur) => (cur === index ? null : index));
   }
 
+  function placeLetterAt(rackIndex: number, row: number, col: number) {
+    const letter = myRack[rackIndex];
+    if (letter === "?") {
+      setBlankFor({ row, col, rackIndex });
+    } else {
+      setPending((p) => [...p, { row, col, rackIndex, letter, blank: false }]);
+    }
+  }
+
   function placeOnCell(row: number, col: number) {
     setError(null);
     // Tapping a pending tile removes it.
@@ -114,13 +138,76 @@ export function GameScreen() {
       return;
     }
     if (selected === null || !isEmpty(game!.board, row, col)) return;
-    const letter = myRack[selected];
-    if (letter === "?") {
-      setBlankFor({ row, col, rackIndex: selected });
-    } else {
-      setPending((p) => [...p, { row, col, rackIndex: selected, letter, blank: false }]);
-    }
+    placeLetterAt(selected, row, col);
     setSelected(null);
+  }
+
+  function dragHitTest(clientX: number, clientY: number): DropTarget | null {
+    const el = document.elementFromPoint(clientX, clientY);
+    if (!el) return null;
+    const cellEl = el.closest<HTMLElement>("[data-board-row]");
+    if (cellEl) {
+      const row = Number(cellEl.dataset.boardRow);
+      const col = Number(cellEl.dataset.boardCol);
+      const occupied = !isEmpty(game!.board, row, col) || pending.some((p) => p.row === row && p.col === col);
+      return { type: "board", row, col, valid: myTurn && !finished && !occupied };
+    }
+    const slotEl = el.closest<HTMLElement>("[data-rack-slot]");
+    if (slotEl) return { type: "rack", index: Number(slotEl.dataset.rackSlot) };
+    return null;
+  }
+
+  function sameDropTarget(a: DropTarget | null, b: DropTarget | null): boolean {
+    if (a === b) return true;
+    if (!a || !b || a.type !== b.type) return false;
+    if (a.type === "board" && b.type === "board") return a.row === b.row && a.col === b.col && a.valid === b.valid;
+    if (a.type === "rack" && b.type === "rack") return a.index === b.index;
+    return false;
+  }
+
+  function positionGhost(x: number, y: number) {
+    if (dragGhostRef.current) {
+      dragGhostRef.current.style.transform = `translate(${x}px, ${y}px) translate(-50%, -50%)`;
+    }
+  }
+
+  function startTileDrag(displayIndex: number, rackIndex: number, letter: string, x: number, y: number, rect: DOMRect) {
+    setError(null);
+    setSelected(null);
+    dragInfoRef.current = { rackIndex, displayIndex };
+    setDragActive({ displayIndex, letter, width: rect.width, height: rect.height, x, y });
+    setDropTarget(dragHitTest(x, y));
+  }
+
+  function moveTileDrag(x: number, y: number) {
+    positionGhost(x, y);
+    setDropTarget((prev) => {
+      const next = dragHitTest(x, y);
+      return sameDropTarget(prev, next) ? prev : next;
+    });
+  }
+
+  function endTileDrag(x: number, y: number) {
+    const info = dragInfoRef.current;
+    dragInfoRef.current = null;
+    setDragActive(null);
+    setDropTarget(null);
+    if (!info) return;
+    const hit = dragHitTest(x, y);
+    if (hit?.type === "board" && hit.valid) {
+      placeLetterAt(info.rackIndex, hit.row, hit.col);
+    } else if (hit?.type === "rack" && hit.index !== info.displayIndex) {
+      setOrder((o) => {
+        const from = o.indexOf(info.rackIndex);
+        return from === -1 ? o : moveItem(o, from, hit.index);
+      });
+    }
+  }
+
+  function cancelTileDrag() {
+    dragInfoRef.current = null;
+    setDragActive(null);
+    setDropTarget(null);
   }
 
   function chooseBlank(letter: string) {
@@ -222,6 +309,7 @@ export function GameScreen() {
               lastMove={lastMove}
               interactive={myTurn && !finished}
               onCellClick={placeOnCell}
+              dropTarget={dropTarget?.type === "board" ? dropTarget : null}
             />
           </BoardViewport>
 
@@ -245,6 +333,12 @@ export function GameScreen() {
                   usedIndices={usedIndices}
                   selected={selected}
                   onSelect={selectRackTile}
+                  draggingIndex={dragActive?.displayIndex ?? null}
+                  dropIndex={dropTarget?.type === "rack" ? dropTarget.index : null}
+                  onDragStart={startTileDrag}
+                  onDragMove={moveTileDrag}
+                  onDragEnd={endTileDrag}
+                  onDragCancel={cancelTileDrag}
                 />
                 <div className="game-actions">
                   <button className="btn" onClick={hasPending ? recall : shuffle}>
@@ -264,6 +358,12 @@ export function GameScreen() {
                   usedIndices={usedIndices}
                   selected={selected}
                   onSelect={selectRackTile}
+                  draggingIndex={dragActive?.displayIndex ?? null}
+                  dropIndex={dropTarget?.type === "rack" ? dropTarget.index : null}
+                  onDragStart={startTileDrag}
+                  onDragMove={moveTileDrag}
+                  onDragEnd={endTileDrag}
+                  onDragCancel={cancelTileDrag}
                 />
                 <div className="game-actions">
                   <button className="btn" onClick={() => setMoreOpen(true)}>
@@ -309,6 +409,20 @@ export function GameScreen() {
           onClose={() => setMoreOpen(false)}
         />
       )}
+
+      {dragActive && (
+        <div
+          ref={dragGhostRef}
+          className="drag-ghost"
+          style={{
+            width: dragActive.width,
+            height: dragActive.height,
+            transform: `translate(${dragActive.x}px, ${dragActive.y}px) translate(-50%, -50%)`,
+          }}
+        >
+          <Tile letter={dragActive.letter === "?" ? "" : dragActive.letter} blank={dragActive.letter === "?"} />
+        </div>
+      )}
     </div>
   );
 }
@@ -319,12 +433,24 @@ function RackArea({
   usedIndices,
   selected,
   onSelect,
+  draggingIndex,
+  dropIndex,
+  onDragStart,
+  onDragMove,
+  onDragEnd,
+  onDragCancel,
 }: {
   rack: string;
   order: number[];
   usedIndices: Set<number>;
   selected: number | null;
   onSelect: (i: number) => void;
+  draggingIndex: number | null;
+  dropIndex: number | null;
+  onDragStart: (displayIndex: number, rackIndex: number, letter: string, x: number, y: number, rect: DOMRect) => void;
+  onDragMove: (x: number, y: number) => void;
+  onDragEnd: (x: number, y: number) => void;
+  onDragCancel: () => void;
 }) {
   const reordered = order.map((i) => rack[i]).join("");
   const usedInDisplay = new Set(
@@ -338,6 +464,14 @@ function RackArea({
         usedIndices={usedInDisplay}
         selectedIndex={selected === null ? null : order.indexOf(selected)}
         onSelect={(displayIndex) => onSelect(remap.get(displayIndex)!)}
+        draggingIndex={draggingIndex}
+        dropIndex={dropIndex}
+        onDragStart={(displayIndex, x, y, rect) =>
+          onDragStart(displayIndex, remap.get(displayIndex)!, reordered[displayIndex], x, y, rect)
+        }
+        onDragMove={onDragMove}
+        onDragEnd={onDragEnd}
+        onDragCancel={onDragCancel}
       />
     </div>
   );
