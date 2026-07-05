@@ -303,15 +303,16 @@ body {
 
 /* --- board --- */
 .board-wrap {
+  flex: 1;
+  min-height: 0;
   padding: 0.5rem 0.5rem;
   display: flex;
+  align-items: center;
   justify-content: center;
 }
 .board-viewport {
-  width: 100%;
   max-width: var(--board-max);
-  aspect-ratio: 1;
-  margin: 0 auto;
+  max-height: var(--board-max);
   overflow: hidden;
   touch-action: none;
   -webkit-touch-callout: none;
@@ -416,6 +417,23 @@ body {
 /* --- rack --- */
 .game-screen {
   gap: 0.25rem;
+  height: 100dvh;
+  overflow: hidden;
+  touch-action: none;
+}
+.game-middle {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+.bottom-bar {
+  flex-shrink: 0;
+  background: var(--bg);
+  border-top: 1px solid var(--border);
+  padding-bottom: env(safe-area-inset-bottom);
 }
 .rack-area {
   padding: 0.5rem 0.5rem 0;
@@ -439,18 +457,6 @@ body {
 .rack-slot-empty {
   border: 2px dashed var(--border);
   border-radius: 5px;
-}
-.rack-controls {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  margin-top: 0.5rem;
-}
-.provisional {
-  font-weight: 700;
-  color: var(--accent);
-  font-size: 1.1rem;
 }
 
 /* --- scorebar --- */
@@ -586,6 +592,12 @@ body {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
   gap: 6px;
+  margin: 1rem 0;
+}
+.modal-action-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
   margin: 1rem 0;
 }
 

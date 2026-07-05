@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   TAP_MOVE_THRESHOLD,
   clampPan,
@@ -28,6 +28,7 @@ const SETTLE_MS = 260;
  * scoped entirely to this viewport (touch/pen only — mouse passes through
  * untouched so the wrapped board's own click handlers keep working as-is). */
 export function BoardViewport({ children }: { children: React.ReactNode }) {
+  const wrapRef = useRef<HTMLDivElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
   const surfaceRef = useRef<HTMLDivElement>(null);
   const transformRef = useRef<Transform>(IDENTITY);
@@ -35,6 +36,23 @@ export function BoardViewport({ children }: { children: React.ReactNode }) {
   const gesture = useRef<Gesture | null>(null);
   const lastTap = useRef<Tap | null>(null);
   const rafId = useRef<number | null>(null);
+  // The board is square, but the space around it (between the fixed header
+  // and the fixed rack/action bar) isn't -- measure it and size the board to
+  // the largest square that fits both dimensions, so it grows to fill
+  // whatever vertical room is available instead of only ever being
+  // width-constrained.
+  const [size, setSize] = useState(0);
+
+  useEffect(() => {
+    const wrap = wrapRef.current;
+    if (!wrap) return;
+    const observer = new ResizeObserver(([entry]) => {
+      const { width, height } = entry.contentRect;
+      setSize(Math.min(width, height));
+    });
+    observer.observe(wrap);
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(() => () => {
     if (rafId.current !== null) cancelAnimationFrame(rafId.current);
@@ -177,16 +195,19 @@ export function BoardViewport({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div
-      ref={viewportRef}
-      className="board-viewport"
-      onPointerDown={onPointerDown}
-      onPointerMove={onPointerMove}
-      onPointerUp={(e) => endPointer(e, true)}
-      onPointerCancel={(e) => endPointer(e, false)}
-    >
-      <div ref={surfaceRef} className="board-surface" style={{ transform: "translate(0px, 0px) scale(1)" }}>
-        {children}
+    <div ref={wrapRef} className="board-wrap">
+      <div
+        ref={viewportRef}
+        className="board-viewport"
+        style={{ width: size, height: size }}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={(e) => endPointer(e, true)}
+        onPointerCancel={(e) => endPointer(e, false)}
+      >
+        <div ref={surfaceRef} className="board-surface" style={{ transform: "translate(0px, 0px) scale(1)" }}>
+          {children}
+        </div>
       </div>
     </div>
   );
