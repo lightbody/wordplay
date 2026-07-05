@@ -6,9 +6,14 @@
 // main.tsx, not linked from any route. Vite's dev server serves any .html
 // file at the project root automatically -- `npm run dev` and navigate to
 // /drag-harness.html. See CLAUDE.md for how to drive it with Playwright.
+//
+// Placement is drag-only (no tap-to-select-then-place), matching GameScreen:
+// drag a rack tile onto the board to place it, drag within the rack to
+// reorder, drag a pending (not yet submitted) board tile back to the rack to
+// recall it or onto a different empty cell to reposition it. Tapping a
+// pending board tile still removes it, as a quick alternative to dragging.
 import { useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { LayoutGroup } from "motion/react";
 import { N, isEmpty } from "./engine";
 import { moveItem, rackColumnAt } from "./dragMath";
 import type { PendingTile } from "./types";
@@ -19,6 +24,7 @@ import { Tile } from "./components/Tile";
 import "./App.css";
 
 type DropTarget = { type: "board"; row: number; col: number; valid: boolean } | { type: "rack"; index: number };
+type DragSource = { kind: "rack"; rackIndex: number } | { kind: "board"; rackIndex: number; row: number; col: number };
 
 const EMPTY_BOARD = ".".repeat(N * N);
 
@@ -26,17 +32,18 @@ function Harness() {
   const rack = "HELLO?Z";
   const [order, setOrder] = useState<number[]>([0, 1, 2, 3, 4, 5, 6]);
   const [pending, setPending] = useState<PendingTile[]>([]);
-  const [selected, setSelected] = useState<number | null>(null);
   const [dragActive, setDragActive] = useState<{
     rackIndex: number;
     letter: string;
+    blank: boolean;
     width: number;
     height: number;
     x: number;
     y: number;
+    origin: DragSource;
   } | null>(null);
   const [dropTarget, setDropTarget] = useState<DropTarget | null>(null);
-  const dragInfoRef = useRef<number | null>(null);
+  const dragInfoRef = useRef<DragSource | null>(null);
   const dragStartOrderRef = useRef<number[] | null>(null);
   const dragGhostRef = useRef<HTMLDivElement>(null);
 
@@ -47,15 +54,9 @@ function Harness() {
     setPending((p) => [...p, { row, col, rackIndex, letter: letter === "?" ? "X" : letter, blank: letter === "?" }]);
   }
 
-  function placeOnCell(row: number, col: number) {
+  function removePendingTile(row: number, col: number) {
     const existing = pending.find((p) => p.row === row && p.col === col);
-    if (existing) {
-      setPending((p) => p.filter((t) => t !== existing));
-      return;
-    }
-    if (selected === null || !isEmpty(EMPTY_BOARD, row, col)) return;
-    placeLetterAt(selected, row, col);
-    setSelected(null);
+    if (existing) setPending((p) => p.filter((t) => t !== existing));
   }
 
   function dragHitTest(clientX: number, clientY: number): DropTarget | null {
@@ -72,7 +73,10 @@ function Harness() {
     if (cellEl) {
       const row = Number(cellEl.dataset.boardRow);
       const col = Number(cellEl.dataset.boardCol);
-      const occupied = !isEmpty(EMPTY_BOARD, row, col) || pending.some((p) => p.row === row && p.col === col);
+      const draggedRackIndex = dragInfoRef.current?.rackIndex;
+      const occupied =
+        !isEmpty(EMPTY_BOARD, row, col) ||
+        pending.some((p) => p.row === row && p.col === col && p.rackIndex !== draggedRackIndex);
       return { type: "board", row, col, valid: !occupied };
     }
     return null;
@@ -94,10 +98,10 @@ function Harness() {
 
   function applyOrderPreview(hit: DropTarget | null) {
     const startOrder = dragStartOrderRef.current;
-    const rackIndex = dragInfoRef.current;
-    if (startOrder === null || rackIndex === null) return;
+    const info = dragInfoRef.current;
+    if (startOrder === null || info?.kind !== "rack") return;
     if (hit?.type === "rack") {
-      const from = startOrder.indexOf(rackIndex);
+      const from = startOrder.indexOf(info.rackIndex);
       setOrder(from === -1 ? startOrder : moveItem(startOrder, from, hit.index));
     } else {
       setOrder(startOrder);
@@ -105,13 +109,40 @@ function Harness() {
   }
 
   function startTileDrag(rackIndex: number, x: number, y: number, rect: DOMRect) {
-    setSelected(null);
-    dragInfoRef.current = rackIndex;
+    dragInfoRef.current = { kind: "rack", rackIndex };
     dragStartOrderRef.current = order;
-    setDragActive({ rackIndex, letter: rack[rackIndex], width: rect.width, height: rect.height, x, y });
+    const letter = rack[rackIndex];
+    const blank = letter === "?";
+    setDragActive({
+      rackIndex,
+      letter: blank ? "" : letter,
+      blank,
+      width: rect.width,
+      height: rect.height,
+      x,
+      y,
+      origin: { kind: "rack", rackIndex },
+    });
     const hit = dragHitTest(x, y);
     setDropTarget(hit);
     applyOrderPreview(hit);
+  }
+
+  function startBoardTileDrag(row: number, col: number, x: number, y: number, rect: DOMRect) {
+    const pend = pending.find((p) => p.row === row && p.col === col);
+    if (!pend) return;
+    dragInfoRef.current = { kind: "board", rackIndex: pend.rackIndex, row, col };
+    setDragActive({
+      rackIndex: pend.rackIndex,
+      letter: pend.letter,
+      blank: pend.blank,
+      width: rect.width,
+      height: rect.height,
+      x,
+      y,
+      origin: { kind: "board", rackIndex: pend.rackIndex, row, col },
+    });
+    setDropTarget(dragHitTest(x, y));
   }
 
   function moveTileDrag(x: number, y: number) {
@@ -123,32 +154,45 @@ function Harness() {
   }
 
   function endTileDrag(x: number, y: number) {
-    const rackIndex = dragInfoRef.current;
+    const info = dragInfoRef.current;
     const startOrder = dragStartOrderRef.current;
     dragInfoRef.current = null;
     dragStartOrderRef.current = null;
     setDragActive(null);
     setDropTarget(null);
-    if (rackIndex === null) return;
+    if (!info) return;
     const hit = dragHitTest(x, y);
-    if (hit?.type === "board" && hit.valid) {
-      if (startOrder) setOrder(startOrder);
-      placeLetterAt(rackIndex, hit.row, hit.col);
-    } else if (hit?.type === "rack" && startOrder) {
-      const from = startOrder.indexOf(rackIndex);
-      setOrder(from === -1 ? startOrder : moveItem(startOrder, from, hit.index));
-    } else if (startOrder) {
-      setOrder(startOrder);
+
+    if (info.kind === "rack") {
+      if (hit?.type === "board" && hit.valid) {
+        if (startOrder) setOrder(startOrder);
+        placeLetterAt(info.rackIndex, hit.row, hit.col);
+      } else if (hit?.type === "rack" && startOrder) {
+        const from = startOrder.indexOf(info.rackIndex);
+        setOrder(from === -1 ? startOrder : moveItem(startOrder, from, hit.index));
+      } else if (startOrder) {
+        setOrder(startOrder);
+      }
+      return;
+    }
+
+    if (hit?.type === "rack") {
+      setPending((p) => p.filter((t) => !(t.row === info.row && t.col === info.col)));
+    } else if (hit?.type === "board" && hit.valid) {
+      setPending((p) =>
+        p.map((t) => (t.row === info.row && t.col === info.col ? { ...t, row: hit.row, col: hit.col } : t)),
+      );
     }
   }
 
   function cancelTileDrag() {
+    const info = dragInfoRef.current;
     const startOrder = dragStartOrderRef.current;
     dragInfoRef.current = null;
     dragStartOrderRef.current = null;
     setDragActive(null);
     setDropTarget(null);
-    if (startOrder) setOrder(startOrder);
+    if (info?.kind === "rack" && startOrder) setOrder(startOrder);
   }
 
   return (
@@ -159,36 +203,37 @@ function Harness() {
       >
         order: {JSON.stringify(order)} | pending: {JSON.stringify(pending.map((p) => `${p.row},${p.col}=${p.letter}`))}
       </div>
-      <LayoutGroup>
-        <div className="game-middle">
-          <BoardViewport>
-            <Board
-              board={EMPTY_BOARD}
-              pending={pending}
-              interactive
-              onCellClick={placeOnCell}
-              dropTarget={dropTarget?.type === "board" ? dropTarget : null}
-            />
-          </BoardViewport>
+      <div className="game-middle">
+        <BoardViewport>
+          <Board
+            board={EMPTY_BOARD}
+            pending={pending}
+            interactive
+            onCellClick={removePendingTile}
+            dropTarget={dropTarget?.type === "board" ? dropTarget : null}
+            draggingFrom={dragActive?.origin.kind === "board" ? dragActive.origin : null}
+            onTileDragStart={startBoardTileDrag}
+            onTileDragMove={moveTileDrag}
+            onTileDragEnd={endTileDrag}
+            onTileDragCancel={cancelTileDrag}
+          />
+        </BoardViewport>
+      </div>
+      <div className="bottom-bar">
+        <div className="rack-area">
+          <Rack
+            rack={rack}
+            order={order}
+            usedIndices={usedIndices}
+            draggingIndex={dragActive?.rackIndex ?? null}
+            dropIndex={dropTarget?.type === "rack" ? dropTarget.index : null}
+            onDragStart={startTileDrag}
+            onDragMove={moveTileDrag}
+            onDragEnd={endTileDrag}
+            onDragCancel={cancelTileDrag}
+          />
         </div>
-        <div className="bottom-bar">
-          <div className="rack-area">
-            <Rack
-              rack={rack}
-              order={order}
-              usedIndices={usedIndices}
-              selectedIndex={selected}
-              onSelect={(rackIndex) => setSelected((cur) => (cur === rackIndex ? null : rackIndex))}
-              draggingIndex={dragActive?.rackIndex ?? null}
-              dropIndex={dropTarget?.type === "rack" ? dropTarget.index : null}
-              onDragStart={startTileDrag}
-              onDragMove={moveTileDrag}
-              onDragEnd={endTileDrag}
-              onDragCancel={cancelTileDrag}
-            />
-          </div>
-        </div>
-      </LayoutGroup>
+      </div>
       {dragActive && (
         <div
           ref={dragGhostRef}
@@ -199,7 +244,7 @@ function Harness() {
             transform: `translate(${dragActive.x}px, ${dragActive.y}px) translate(-50%, -50%) scale(1.08)`,
           }}
         >
-          <Tile letter={dragActive.letter === "?" ? "" : dragActive.letter} blank={dragActive.letter === "?"} />
+          <Tile letter={dragActive.letter} blank={dragActive.blank} />
         </div>
       )}
     </div>

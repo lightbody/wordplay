@@ -12,9 +12,6 @@ interface RackProps {
   order: number[];
   /** Original rack indices currently placed on the board (rendered as gaps). */
   usedIndices: Set<number>;
-  /** Original rack index of the currently selected tile, if any. */
-  selectedIndex: number | null;
-  onSelect: (rackIndex: number) => void;
   /** Original rack index of the tile currently being drag-picked-up, if any. */
   draggingIndex?: number | null;
   /** Display position currently hovered as a reorder target. */
@@ -29,8 +26,6 @@ export function Rack({
   rack,
   order,
   usedIndices,
-  selectedIndex,
-  onSelect,
   draggingIndex,
   dropIndex,
   onDragStart,
@@ -89,11 +84,7 @@ export function Rack({
     const g = gesture.current;
     if (!g || g.pointerId !== e.pointerId) return;
     gesture.current = null;
-    if (g.dragging) {
-      onDragEnd?.(e.clientX, e.clientY);
-    } else {
-      onSelect(g.rackIndex);
-    }
+    if (g.dragging) onDragEnd?.(e.clientX, e.clientY);
   }
 
   function handlePointerCancel(e: React.PointerEvent<HTMLDivElement>) {
@@ -142,10 +133,8 @@ export function Rack({
               <Tile
                 letter={letter === "?" ? "" : letter}
                 blank={letter === "?"}
-                layoutId={`tile-${rackIndex}`}
-                selected={selectedIndex === rackIndex}
                 dragging={draggingIndex === rackIndex}
-                onClick={() => onSelect(rackIndex)}
+                interactive
               />
             </motion.div>
           );

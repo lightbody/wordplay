@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { LayoutGroup } from "motion/react";
 import { ApiError } from "../api";
 import { checkPlacement, isEmpty } from "../engine";
 import { moveItem, rackColumnAt } from "../dragMath";
@@ -19,6 +18,9 @@ import { MoreMenu } from "../components/MoreMenu";
 import { SharePanel } from "../components/SharePanel";
 
 type DropTarget = { type: "board"; row: number; col: number; valid: boolean } | { type: "rack"; index: number };
+
+/** Where a tile currently being dragged came from. */
+type DragSource = { kind: "rack"; rackIndex: number } | { kind: "board"; rackIndex: number; row: number; col: number };
 
 export function GameScreen() {
   const { id } = useParams<{ id: string }>();
@@ -40,7 +42,6 @@ export function GameScreen() {
   );
 
   const [pending, setPending] = useState<PendingTile[]>([]);
-  const [selected, setSelected] = useState<number | null>(null);
   const [order, setOrder] = useState<number[]>([]);
   const [blankFor, setBlankFor] = useState<{ row: number; col: number; rackIndex: number } | null>(null);
   const [swapOpen, setSwapOpen] = useState(false);
@@ -50,20 +51,21 @@ export function GameScreen() {
   const [dragActive, setDragActive] = useState<{
     rackIndex: number;
     letter: string;
+    blank: boolean;
     width: number;
     height: number;
     x: number;
     y: number;
+    origin: DragSource;
   } | null>(null);
   const [dropTarget, setDropTarget] = useState<DropTarget | null>(null);
-  const dragInfoRef = useRef<number | null>(null);
+  const dragInfoRef = useRef<DragSource | null>(null);
   const dragStartOrderRef = useRef<number[] | null>(null);
   const dragGhostRef = useRef<HTMLDivElement>(null);
 
   // Reset transient move state when the rack changes (i.e. after any move).
   useEffect(() => {
     setPending([]);
-    setSelected(null);
     setOrder(Array.from({ length: myRack.length }, (_, i) => i));
   }, [myRack]);
 
@@ -116,11 +118,6 @@ export function GameScreen() {
   const placement = checkPlacement(game.board, pending);
   const canPlay = myTurn && !finished && pending.length > 0 && placement.valid && !busy;
 
-  function selectRackTile(index: number) {
-    setError(null);
-    setSelected((cur) => (cur === index ? null : index));
-  }
-
   function placeLetterAt(rackIndex: number, row: number, col: number) {
     const letter = myRack[rackIndex];
     if (letter === "?") {
@@ -130,17 +127,12 @@ export function GameScreen() {
     }
   }
 
-  function placeOnCell(row: number, col: number) {
+  // Placement is drag-only; a tap on a pending (not yet submitted) board
+  // tile still removes it, as a quick alternative to dragging it back.
+  function removePendingTile(row: number, col: number) {
     setError(null);
-    // Tapping a pending tile removes it.
     const existing = pending.find((p) => p.row === row && p.col === col);
-    if (existing) {
-      setPending((p) => p.filter((t) => t !== existing));
-      return;
-    }
-    if (selected === null || !isEmpty(game!.board, row, col)) return;
-    placeLetterAt(selected, row, col);
-    setSelected(null);
+    if (existing) setPending((p) => p.filter((t) => t !== existing));
   }
 
   function dragHitTest(clientX: number, clientY: number): DropTarget | null {
@@ -162,7 +154,13 @@ export function GameScreen() {
     if (cellEl) {
       const row = Number(cellEl.dataset.boardRow);
       const col = Number(cellEl.dataset.boardCol);
-      const occupied = !isEmpty(game!.board, row, col) || pending.some((p) => p.row === row && p.col === col);
+      // Exclude the tile currently being dragged from its own occupancy
+      // check, so hovering it back over its own cell (or a board-origin
+      // drag that hasn't actually moved) doesn't read as blocked.
+      const draggedRackIndex = dragInfoRef.current?.rackIndex;
+      const occupied =
+        !isEmpty(game!.board, row, col) ||
+        pending.some((p) => p.row === row && p.col === col && p.rackIndex !== draggedRackIndex);
       return { type: "board", row, col, valid: myTurn && !finished && !occupied };
     }
     return null;
@@ -184,13 +182,15 @@ export function GameScreen() {
 
   // Live-previews the rack shifting to "make room" at the hovered slot,
   // recomputed from the drag's start order each time so it's idempotent
-  // regardless of the path the pointer took to get there.
+  // regardless of the path the pointer took to get there. Only meaningful
+  // for a rack-origin drag -- a board-origin drag never touches `order`,
+  // since removing it from `pending` reveals it at its existing slot.
   function applyOrderPreview(hit: DropTarget | null) {
     const startOrder = dragStartOrderRef.current;
-    const rackIndex = dragInfoRef.current;
-    if (startOrder === null || rackIndex === null) return;
+    const info = dragInfoRef.current;
+    if (startOrder === null || info?.kind !== "rack") return;
     if (hit?.type === "rack") {
-      const from = startOrder.indexOf(rackIndex);
+      const from = startOrder.indexOf(info.rackIndex);
       setOrder(from === -1 ? startOrder : moveItem(startOrder, from, hit.index));
     } else {
       setOrder(startOrder);
@@ -199,13 +199,41 @@ export function GameScreen() {
 
   function startTileDrag(rackIndex: number, x: number, y: number, rect: DOMRect) {
     setError(null);
-    setSelected(null);
-    dragInfoRef.current = rackIndex;
+    dragInfoRef.current = { kind: "rack", rackIndex };
     dragStartOrderRef.current = order;
-    setDragActive({ rackIndex, letter: myRack[rackIndex], width: rect.width, height: rect.height, x, y });
+    const letter = myRack[rackIndex];
+    const blank = letter === "?";
+    setDragActive({
+      rackIndex,
+      letter: blank ? "" : letter,
+      blank,
+      width: rect.width,
+      height: rect.height,
+      x,
+      y,
+      origin: { kind: "rack", rackIndex },
+    });
     const hit = dragHitTest(x, y);
     setDropTarget(hit);
     applyOrderPreview(hit);
+  }
+
+  function startBoardTileDrag(row: number, col: number, x: number, y: number, rect: DOMRect) {
+    const pend = pending.find((p) => p.row === row && p.col === col);
+    if (!pend) return;
+    setError(null);
+    dragInfoRef.current = { kind: "board", rackIndex: pend.rackIndex, row, col };
+    setDragActive({
+      rackIndex: pend.rackIndex,
+      letter: pend.letter,
+      blank: pend.blank,
+      width: rect.width,
+      height: rect.height,
+      x,
+      y,
+      origin: { kind: "board", rackIndex: pend.rackIndex, row, col },
+    });
+    setDropTarget(dragHitTest(x, y));
   }
 
   function moveTileDrag(x: number, y: number) {
@@ -217,32 +245,49 @@ export function GameScreen() {
   }
 
   function endTileDrag(x: number, y: number) {
-    const rackIndex = dragInfoRef.current;
+    const info = dragInfoRef.current;
     const startOrder = dragStartOrderRef.current;
     dragInfoRef.current = null;
     dragStartOrderRef.current = null;
     setDragActive(null);
     setDropTarget(null);
-    if (rackIndex === null) return;
+    if (!info) return;
     const hit = dragHitTest(x, y);
-    if (hit?.type === "board" && hit.valid) {
-      if (startOrder) setOrder(startOrder);
-      placeLetterAt(rackIndex, hit.row, hit.col);
-    } else if (hit?.type === "rack" && startOrder) {
-      const from = startOrder.indexOf(rackIndex);
-      setOrder(from === -1 ? startOrder : moveItem(startOrder, from, hit.index));
-    } else if (startOrder) {
-      setOrder(startOrder);
+
+    if (info.kind === "rack") {
+      if (hit?.type === "board" && hit.valid) {
+        if (startOrder) setOrder(startOrder);
+        placeLetterAt(info.rackIndex, hit.row, hit.col);
+      } else if (hit?.type === "rack" && startOrder) {
+        const from = startOrder.indexOf(info.rackIndex);
+        setOrder(from === -1 ? startOrder : moveItem(startOrder, from, hit.index));
+      } else if (startOrder) {
+        setOrder(startOrder);
+      }
+      return;
+    }
+
+    // Board-origin: dropping on the rack recalls the tile (it reappears at
+    // its existing rack slot once it's no longer pending); dropping on a
+    // different empty cell repositions it; anything else snaps back, which
+    // needs no state change since `pending` was never mutated mid-drag.
+    if (hit?.type === "rack") {
+      setPending((p) => p.filter((t) => !(t.row === info.row && t.col === info.col)));
+    } else if (hit?.type === "board" && hit.valid) {
+      setPending((p) =>
+        p.map((t) => (t.row === info.row && t.col === info.col ? { ...t, row: hit.row, col: hit.col } : t)),
+      );
     }
   }
 
   function cancelTileDrag() {
+    const info = dragInfoRef.current;
     const startOrder = dragStartOrderRef.current;
     dragInfoRef.current = null;
     dragStartOrderRef.current = null;
     setDragActive(null);
     setDropTarget(null);
-    if (startOrder) setOrder(startOrder);
+    if (info?.kind === "rack" && startOrder) setOrder(startOrder);
   }
 
   function chooseBlank(letter: string) {
@@ -256,7 +301,6 @@ export function GameScreen() {
 
   function recall() {
     setPending([]);
-    setSelected(null);
   }
 
   function shuffle() {
@@ -333,92 +377,91 @@ export function GameScreen() {
         <span />
       </header>
 
-      <LayoutGroup>
-        <div className="game-middle">
-          <ScoreBar game={game} meCreator={meCreator} myTurn={myTurn} />
+      <div className="game-middle">
+        <ScoreBar game={game} meCreator={meCreator} myTurn={myTurn} />
 
-          <BoardViewport>
-            <Board
-              board={game.board}
-              pending={pending}
-              lastMove={lastMove}
-              interactive={myTurn && !finished}
-              onCellClick={placeOnCell}
-              dropTarget={dropTarget?.type === "board" ? dropTarget : null}
-            />
-          </BoardViewport>
+        <BoardViewport>
+          <Board
+            board={game.board}
+            pending={pending}
+            lastMove={lastMove}
+            interactive={myTurn && !finished}
+            onCellClick={removePendingTile}
+            dropTarget={dropTarget?.type === "board" ? dropTarget : null}
+            draggingFrom={dragActive?.origin.kind === "board" ? dragActive.origin : null}
+            onTileDragStart={startBoardTileDrag}
+            onTileDragMove={moveTileDrag}
+            onTileDragEnd={endTileDrag}
+            onTileDragCancel={cancelTileDrag}
+          />
+        </BoardViewport>
 
-          {phase === "sharing" && <SharePanel game={game} />}
-          {error && <div className="error-banner">{error}</div>}
-        </div>
+        {phase === "sharing" && <SharePanel game={game} />}
+        {error && <div className="error-banner">{error}</div>}
+      </div>
 
-        {phase !== "sharing" && (
-          <div className="bottom-bar">
-            {phase === "finished" ? (
+      {phase !== "sharing" && (
+        <div className="bottom-bar">
+          {phase === "finished" ? (
+            <div className="game-actions">
+              <button className="btn btn-primary btn-block" onClick={() => navigate(`/games/${id}/summary`)}>
+                View summary
+              </button>
+            </div>
+          ) : phase === "opening" ? (
+            <>
+              <RackArea
+                rack={myRack}
+                order={orderedRack}
+                usedIndices={usedIndices}
+                draggingIndex={dragActive?.rackIndex ?? null}
+                dropIndex={dropTarget?.type === "rack" ? dropTarget.index : null}
+                onDragStart={startTileDrag}
+                onDragMove={moveTileDrag}
+                onDragEnd={endTileDrag}
+                onDragCancel={cancelTileDrag}
+              />
               <div className="game-actions">
-                <button className="btn btn-primary btn-block" onClick={() => navigate(`/games/${id}/summary`)}>
-                  View summary
+                <button className="btn" onClick={hasPending ? recall : shuffle}>
+                  {hasPending ? "Recall" : "Shuffle"}
+                </button>
+                <button className="btn btn-primary" disabled={!canPlay} onClick={submitPlay}>
+                  Play opening {placement.valid ? `(${placement.score})` : ""}
                 </button>
               </div>
-            ) : phase === "opening" ? (
-              <>
-                <RackArea
-                  rack={myRack}
-                  order={orderedRack}
-                  usedIndices={usedIndices}
-                  selected={selected}
-                  onSelect={selectRackTile}
-                  draggingIndex={dragActive?.rackIndex ?? null}
-                  dropIndex={dropTarget?.type === "rack" ? dropTarget.index : null}
-                  onDragStart={startTileDrag}
-                  onDragMove={moveTileDrag}
-                  onDragEnd={endTileDrag}
-                  onDragCancel={cancelTileDrag}
-                />
-                <div className="game-actions">
-                  <button className="btn" onClick={hasPending ? recall : shuffle}>
-                    {hasPending ? "Recall" : "Shuffle"}
-                  </button>
-                  <button className="btn btn-primary" disabled={!canPlay} onClick={submitPlay}>
-                    Play opening {placement.valid ? `(${placement.score})` : ""}
-                  </button>
-                </div>
-                <p className="hint-text">Play your opening word, then invite an opponent.</p>
-              </>
-            ) : (
-              <>
-                <RackArea
-                  rack={myRack}
-                  order={orderedRack}
-                  usedIndices={usedIndices}
-                  selected={selected}
-                  onSelect={selectRackTile}
-                  draggingIndex={dragActive?.rackIndex ?? null}
-                  dropIndex={dropTarget?.type === "rack" ? dropTarget.index : null}
-                  onDragStart={startTileDrag}
-                  onDragMove={moveTileDrag}
-                  onDragEnd={endTileDrag}
-                  onDragCancel={cancelTileDrag}
-                />
-                <div className="game-actions">
-                  <button className="btn" onClick={() => setMoreOpen(true)}>
-                    More
-                  </button>
-                  <button className="btn" disabled={!myTurn || busy} onClick={() => setSwapOpen(true)}>
-                    Swap
-                  </button>
-                  <button className="btn" onClick={hasPending ? recall : shuffle}>
-                    {hasPending ? "Recall" : "Shuffle"}
-                  </button>
-                  <button className="btn btn-primary" disabled={!canPlay} onClick={submitPlay}>
-                    Play {placement.valid && pending.length > 0 ? `(${placement.score})` : ""}
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
-        )}
-      </LayoutGroup>
+              <p className="hint-text">Play your opening word, then invite an opponent.</p>
+            </>
+          ) : (
+            <>
+              <RackArea
+                rack={myRack}
+                order={orderedRack}
+                usedIndices={usedIndices}
+                draggingIndex={dragActive?.rackIndex ?? null}
+                dropIndex={dropTarget?.type === "rack" ? dropTarget.index : null}
+                onDragStart={startTileDrag}
+                onDragMove={moveTileDrag}
+                onDragEnd={endTileDrag}
+                onDragCancel={cancelTileDrag}
+              />
+              <div className="game-actions">
+                <button className="btn" onClick={() => setMoreOpen(true)}>
+                  More
+                </button>
+                <button className="btn" disabled={!myTurn || busy} onClick={() => setSwapOpen(true)}>
+                  Swap
+                </button>
+                <button className="btn" onClick={hasPending ? recall : shuffle}>
+                  {hasPending ? "Recall" : "Shuffle"}
+                </button>
+                <button className="btn btn-primary" disabled={!canPlay} onClick={submitPlay}>
+                  Play {placement.valid && pending.length > 0 ? `(${placement.score})` : ""}
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      )}
 
       {blankFor && <BlankPicker onChoose={chooseBlank} onCancel={() => setBlankFor(null)} />}
       {swapOpen && (
@@ -455,7 +498,7 @@ export function GameScreen() {
             transform: `translate(${dragActive.x}px, ${dragActive.y}px) translate(-50%, -50%) scale(1.08)`,
           }}
         >
-          <Tile letter={dragActive.letter === "?" ? "" : dragActive.letter} blank={dragActive.letter === "?"} />
+          <Tile letter={dragActive.letter} blank={dragActive.blank} />
         </div>
       )}
     </div>
@@ -466,8 +509,6 @@ function RackArea({
   rack,
   order,
   usedIndices,
-  selected,
-  onSelect,
   draggingIndex,
   dropIndex,
   onDragStart,
@@ -478,8 +519,6 @@ function RackArea({
   rack: string;
   order: number[];
   usedIndices: Set<number>;
-  selected: number | null;
-  onSelect: (rackIndex: number) => void;
   draggingIndex: number | null;
   dropIndex: number | null;
   onDragStart: (rackIndex: number, x: number, y: number, rect: DOMRect) => void;
@@ -493,8 +532,6 @@ function RackArea({
         rack={rack}
         order={order}
         usedIndices={usedIndices}
-        selectedIndex={selected}
-        onSelect={onSelect}
         draggingIndex={draggingIndex}
         dropIndex={dropIndex}
         onDragStart={onDragStart}

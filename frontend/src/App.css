@@ -413,12 +413,12 @@ body {
 .tile-pending {
   box-shadow: 0 0 0 2px var(--accent), 0 2px 6px rgba(99, 102, 241, 0.4);
 }
+.tile-blank {
+  background: linear-gradient(180deg, #fff, #f0f0f5);
+}
 .tile-selected {
   box-shadow: 0 0 0 3px var(--accent);
   transform: translateY(-3px);
-}
-.tile-blank {
-  background: linear-gradient(180deg, #fff, #f0f0f5);
 }
 
 .drag-ghost {
