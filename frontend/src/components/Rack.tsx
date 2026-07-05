@@ -25,11 +25,6 @@ interface RackProps {
   onDragCancel?: () => void;
 }
 
-function swallowClick(e: Event) {
-  e.preventDefault();
-  e.stopPropagation();
-}
-
 export function Rack({
   rack,
   order,
@@ -43,17 +38,41 @@ export function Rack({
   onDragEnd,
   onDragCancel,
 }: RackProps) {
-  const gesture = useRef<{ pointerId: number; rackIndex: number; startX: number; startY: number; dragging: boolean } | null>(
-    null,
-  );
+  // Pointer handling lives on the stable `.rack` container rather than on
+  // individual tile buttons. Reordering physically moves a tile's DOM node
+  // (React relocates it via the keyed reconciliation that makes the
+  // `layout` slide animation possible) -- and Chromium releases pointer
+  // capture the instant a captured element is removed/reinserted, even
+  // though it lands right back in the document a moment later. Capturing
+  // on a tile meant any mid-drag reorder silently killed the gesture: no
+  // more pointermove events ever arrived, so the drag looked "stuck".
+  // `.rack` itself is never reordered, so it's immune to that.
+  const gesture = useRef<{
+    pointerId: number;
+    rackIndex: number;
+    startX: number;
+    startY: number;
+    dragging: boolean;
+    rect: DOMRect;
+  } | null>(null);
 
-  function handlePointerDown(e: React.PointerEvent<HTMLButtonElement>, rackIndex: number) {
+  function handlePointerDown(e: React.PointerEvent<HTMLDivElement>) {
     if (e.pointerType === "mouse" && e.button !== 0) return;
+    const slotEl = (e.target as HTMLElement).closest<HTMLElement>("[data-rack-index]");
+    const tileEl = slotEl?.querySelector<HTMLElement>(".tile");
+    if (!slotEl || !tileEl) return;
     e.currentTarget.setPointerCapture(e.pointerId);
-    gesture.current = { pointerId: e.pointerId, rackIndex, startX: e.clientX, startY: e.clientY, dragging: false };
+    gesture.current = {
+      pointerId: e.pointerId,
+      rackIndex: Number(slotEl.dataset.rackIndex),
+      startX: e.clientX,
+      startY: e.clientY,
+      dragging: false,
+      rect: tileEl.getBoundingClientRect(),
+    };
   }
 
-  function handlePointerMove(e: React.PointerEvent<HTMLButtonElement>) {
+  function handlePointerMove(e: React.PointerEvent<HTMLDivElement>) {
     const g = gesture.current;
     if (!g || g.pointerId !== e.pointerId) return;
     if (!g.dragging) {
@@ -61,22 +80,23 @@ export function Rack({
       const dy = e.clientY - g.startY;
       if (Math.hypot(dx, dy) < DRAG_THRESHOLD) return;
       g.dragging = true;
-      onDragStart?.(g.rackIndex, e.clientX, e.clientY, e.currentTarget.getBoundingClientRect());
+      onDragStart?.(g.rackIndex, e.clientX, e.clientY, g.rect);
     }
     onDragMove?.(e.clientX, e.clientY);
   }
 
-  function handlePointerUp(e: React.PointerEvent<HTMLButtonElement>) {
+  function handlePointerUp(e: React.PointerEvent<HTMLDivElement>) {
     const g = gesture.current;
     if (!g || g.pointerId !== e.pointerId) return;
     gesture.current = null;
     if (g.dragging) {
-      e.currentTarget.addEventListener("click", swallowClick, { capture: true, once: true });
       onDragEnd?.(e.clientX, e.clientY);
+    } else {
+      onSelect(g.rackIndex);
     }
   }
 
-  function handlePointerCancel(e: React.PointerEvent<HTMLButtonElement>) {
+  function handlePointerCancel(e: React.PointerEvent<HTMLDivElement>) {
     const g = gesture.current;
     if (!g || g.pointerId !== e.pointerId) return;
     gesture.current = null;
@@ -84,7 +104,13 @@ export function Rack({
   }
 
   return (
-    <div className="rack">
+    <div
+      className="rack"
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
+      onPointerCancel={handlePointerCancel}
+    >
       <AnimatePresence>
         {order.map((rackIndex, displayIndex) => {
           // Keying by the stable rack index (not display position) is what
@@ -111,6 +137,7 @@ export function Rack({
                 .filter(Boolean)
                 .join(" ")}
               data-rack-slot={displayIndex}
+              data-rack-index={rackIndex}
             >
               <Tile
                 letter={letter === "?" ? "" : letter}
@@ -119,10 +146,6 @@ export function Rack({
                 selected={selectedIndex === rackIndex}
                 dragging={draggingIndex === rackIndex}
                 onClick={() => onSelect(rackIndex)}
-                onPointerDown={(e) => handlePointerDown(e, rackIndex)}
-                onPointerMove={handlePointerMove}
-                onPointerUp={handlePointerUp}
-                onPointerCancel={handlePointerCancel}
               />
             </motion.div>
           );

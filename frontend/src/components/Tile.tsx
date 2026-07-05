@@ -10,26 +10,9 @@ interface TileProps {
   dragging?: boolean;
   small?: boolean;
   onClick?: () => void;
-  onPointerDown?: (e: React.PointerEvent<HTMLButtonElement>) => void;
-  onPointerMove?: (e: React.PointerEvent<HTMLButtonElement>) => void;
-  onPointerUp?: (e: React.PointerEvent<HTMLButtonElement>) => void;
-  onPointerCancel?: (e: React.PointerEvent<HTMLButtonElement>) => void;
 }
 
-export function Tile({
-  letter,
-  blank,
-  layoutId,
-  pending,
-  selected,
-  dragging,
-  small,
-  onClick,
-  onPointerDown,
-  onPointerMove,
-  onPointerUp,
-  onPointerCancel,
-}: TileProps) {
+export function Tile({ letter, blank, layoutId, pending, selected, dragging, small, onClick }: TileProps) {
   const value = blank ? 0 : letterValue(letter);
   const display = letter ? letter.toUpperCase() : "";
   return (
@@ -37,10 +20,6 @@ export function Tile({
       type="button"
       layoutId={layoutId}
       onClick={onClick}
-      onPointerDown={onPointerDown}
-      onPointerMove={onPointerMove}
-      onPointerUp={onPointerUp}
-      onPointerCancel={onPointerCancel}
       disabled={!onClick}
       className={[
         "tile",

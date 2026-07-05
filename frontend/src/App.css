@@ -471,6 +471,7 @@ body {
   border: 1px solid var(--border);
   border-radius: var(--radius);
   box-shadow: var(--shadow);
+  touch-action: none;
 }
 .rack-slot {
   aspect-ratio: 1;
