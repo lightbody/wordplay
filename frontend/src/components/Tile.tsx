@@ -39,6 +39,13 @@ export function Tile({ letter, blank, pending, selected, dragging, small, intera
       // asserts its own inline style for that value on every render --
       // an inline style always wins over a stylesheet rule, so a
       // `tile-dragging { opacity: 0 }` class gets silently overridden.
+      //
+      // `initial` matches `animate` so a Tile that mounts *already*
+      // dragging (a board-origin drag reveals its rack slot the moment
+      // the drag starts) renders straight at opacity 0 -- without it,
+      // motion tweens fresh mounts from their unstyled default (opacity 1)
+      // to the target, producing a visible flash-then-fade-out.
+      initial={{ opacity: dragging ? 0 : 1 }}
       animate={{ opacity: dragging ? 0 : 1 }}
       whileTap={clickable ? { scale: 0.92 } : undefined}
       transition={{ type: "spring", stiffness: 500, damping: 30 }}
