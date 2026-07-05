@@ -4,22 +4,27 @@ import { letterValue } from "../engine";
 interface TileProps {
   letter: string;
   blank?: boolean;
-  layoutId?: string;
   pending?: boolean;
   selected?: boolean;
+  dragging?: boolean;
   small?: boolean;
+  /** Enables the press-feedback animation and non-disabled cursor styling
+   * for tiles that are draggable but have no click handler of their own
+   * (rack tiles -- placement is drag-only, dragging is handled by Rack's
+   * own container-level pointer listeners, not by this button's onClick). */
+  interactive?: boolean;
   onClick?: () => void;
 }
 
-export function Tile({ letter, blank, layoutId, pending, selected, small, onClick }: TileProps) {
+export function Tile({ letter, blank, pending, selected, dragging, small, interactive, onClick }: TileProps) {
   const value = blank ? 0 : letterValue(letter);
   const display = letter ? letter.toUpperCase() : "";
+  const clickable = interactive || !!onClick;
   return (
     <motion.button
       type="button"
-      layoutId={layoutId}
       onClick={onClick}
-      disabled={!onClick}
+      disabled={!clickable}
       className={[
         "tile",
         pending ? "tile-pending" : "",
@@ -29,7 +34,20 @@ export function Tile({ letter, blank, layoutId, pending, selected, small, onClic
       ]
         .filter(Boolean)
         .join(" ")}
-      whileTap={onClick ? { scale: 0.92 } : undefined}
+      // Driven through motion's own `animate` (rather than a CSS class)
+      // because once whileTap puts a value under motion's control, it
+      // asserts its own inline style for that value on every render --
+      // an inline style always wins over a stylesheet rule, so a
+      // `tile-dragging { opacity: 0 }` class gets silently overridden.
+      //
+      // `initial` matches `animate` so a Tile that mounts *already*
+      // dragging (a board-origin drag reveals its rack slot the moment
+      // the drag starts) renders straight at opacity 0 -- without it,
+      // motion tweens fresh mounts from their unstyled default (opacity 1)
+      // to the target, producing a visible flash-then-fade-out.
+      initial={{ opacity: dragging ? 0 : 1 }}
+      animate={{ opacity: dragging ? 0 : 1 }}
+      whileTap={clickable ? { scale: 0.92 } : undefined}
       transition={{ type: "spring", stiffness: 500, damping: 30 }}
     >
       <span className="tile-letter">{display || (blank ? "" : "")}</span>
