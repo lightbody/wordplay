@@ -14,8 +14,6 @@ interface RackProps {
   usedIndices: Set<number>;
   /** Original rack index of the tile currently being drag-picked-up, if any. */
   draggingIndex?: number | null;
-  /** Display position currently hovered as a reorder target. */
-  dropIndex?: number | null;
   onDragStart?: (rackIndex: number, clientX: number, clientY: number, rect: DOMRect) => void;
   onDragMove?: (clientX: number, clientY: number) => void;
   onDragEnd?: (clientX: number, clientY: number) => void;
@@ -27,7 +25,6 @@ export function Rack({
   order,
   usedIndices,
   draggingIndex,
-  dropIndex,
   onDragStart,
   onDragMove,
   onDragEnd,
@@ -103,33 +100,16 @@ export function Rack({
       onPointerCancel={handlePointerCancel}
     >
       <AnimatePresence>
-        {order.map((rackIndex, displayIndex) => {
+        {order.map((rackIndex) => {
           // Keying by the stable rack index (not display position) is what
           // makes reordering a real DOM move rather than a prop update, so
           // motion's `layout` can FLIP-animate the slide.
           if (usedIndices.has(rackIndex)) {
-            return (
-              <motion.div
-                layout
-                transition={SLOT_TRANSITION}
-                key={rackIndex}
-                className="rack-slot rack-slot-empty"
-                data-rack-slot={displayIndex}
-              />
-            );
+            return <motion.div layout transition={SLOT_TRANSITION} key={rackIndex} className="rack-slot" />;
           }
           const letter = rack[rackIndex];
           return (
-            <motion.div
-              layout
-              transition={SLOT_TRANSITION}
-              key={rackIndex}
-              className={["rack-slot", dropIndex === displayIndex ? "rack-slot-drop-target" : ""]
-                .filter(Boolean)
-                .join(" ")}
-              data-rack-slot={displayIndex}
-              data-rack-index={rackIndex}
-            >
+            <motion.div layout transition={SLOT_TRANSITION} key={rackIndex} className="rack-slot" data-rack-index={rackIndex}>
               <Tile
                 letter={letter === "?" ? "" : letter}
                 blank={letter === "?"}

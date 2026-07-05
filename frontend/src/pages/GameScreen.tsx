@@ -444,7 +444,6 @@ export function GameScreen() {
                 order={orderedRack}
                 usedIndices={rackUsedIndices}
                 draggingIndex={dragActive?.rackIndex ?? null}
-                dropIndex={dropTarget?.type === "rack" ? dropTarget.index : null}
                 onDragStart={startTileDrag}
                 onDragMove={moveTileDrag}
                 onDragEnd={endTileDrag}
@@ -467,7 +466,6 @@ export function GameScreen() {
                 order={orderedRack}
                 usedIndices={rackUsedIndices}
                 draggingIndex={dragActive?.rackIndex ?? null}
-                dropIndex={dropTarget?.type === "rack" ? dropTarget.index : null}
                 onDragStart={startTileDrag}
                 onDragMove={moveTileDrag}
                 onDragEnd={endTileDrag}
@@ -541,7 +539,6 @@ function RackArea({
   order,
   usedIndices,
   draggingIndex,
-  dropIndex,
   onDragStart,
   onDragMove,
   onDragEnd,
@@ -551,7 +548,6 @@ function RackArea({
   order: number[];
   usedIndices: Set<number>;
   draggingIndex: number | null;
-  dropIndex: number | null;
   onDragStart: (rackIndex: number, x: number, y: number, rect: DOMRect) => void;
   onDragMove: (x: number, y: number) => void;
   onDragEnd: (x: number, y: number) => void;
@@ -564,7 +560,6 @@ function RackArea({
         order={order}
         usedIndices={usedIndices}
         draggingIndex={draggingIndex}
-        dropIndex={dropIndex}
         onDragStart={onDragStart}
         onDragMove={onDragMove}
         onDragEnd={onDragEnd}

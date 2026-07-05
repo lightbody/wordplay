@@ -240,7 +240,6 @@ function Harness() {
             order={order}
             usedIndices={rackUsedIndices}
             draggingIndex={dragActive?.rackIndex ?? null}
-            dropIndex={dropTarget?.type === "rack" ? dropTarget.index : null}
             onDragStart={startTileDrag}
             onDragMove={moveTileDrag}
             onDragEnd={endTileDrag}
