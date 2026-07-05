@@ -360,7 +360,7 @@ body {
 .cell-tw { background: var(--tw); }
 .cell-center { background: var(--dw); }
 .cell-premium {
-  font-size: clamp(6px, 1.4vw, 10px);
+  font-size: clamp(8px, 2vw, 14px);
   font-weight: 700;
   color: var(--text);
   opacity: 0.65;

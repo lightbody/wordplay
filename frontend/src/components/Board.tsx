@@ -11,10 +11,10 @@ interface BoardProps {
 }
 
 const PREMIUM_LABEL: Record<string, string> = {
-  DL: "2×L",
-  TL: "3×L",
-  DW: "2×W",
-  TW: "3×W",
+  DL: "2L",
+  TL: "3L",
+  DW: "2W",
+  TW: "3W",
 };
 
 export function Board({ board, pending, lastMove, onCellClick, interactive }: BoardProps) {
