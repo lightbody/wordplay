@@ -183,7 +183,7 @@ export function GameScreen() {
   // The floating drag ghost is always sized off the rack tile (not
   // whatever was actually pressed), so it stays a consistent size whether
   // the drag started on the rack or on a smaller board tile.
-  const GHOST_SCALE = 1.2;
+  const GHOST_SCALE = 1.35;
   function ghostSize(fallbackRect: DOMRect): number {
     const rackTile = document.querySelector<HTMLElement>(".rack .tile");
     const base = rackTile ? rackTile.getBoundingClientRect().width : fallbackRect.width;
@@ -503,7 +503,9 @@ export function GameScreen() {
       {dragActive && (
         <div
           ref={dragGhostRef}
-          className="drag-ghost"
+          className={["drag-ghost", dropTarget?.type === "board" ? "drag-ghost-over-board" : ""]
+            .filter(Boolean)
+            .join(" ")}
           style={{
             width: dragActive.width,
             height: dragActive.height,

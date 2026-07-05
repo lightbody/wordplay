@@ -96,7 +96,7 @@ function Harness() {
     }
   }
 
-  const GHOST_SCALE = 1.2;
+  const GHOST_SCALE = 1.35;
   function ghostSize(fallbackRect: DOMRect): number {
     const rackTile = document.querySelector<HTMLElement>(".rack .tile");
     const base = rackTile ? rackTile.getBoundingClientRect().width : fallbackRect.width;
@@ -246,7 +246,9 @@ function Harness() {
       {dragActive && (
         <div
           ref={dragGhostRef}
-          className="drag-ghost"
+          className={["drag-ghost", dropTarget?.type === "board" ? "drag-ghost-over-board" : ""]
+            .filter(Boolean)
+            .join(" ")}
           style={{
             width: dragActive.width,
             height: dragActive.height,
