@@ -51,13 +51,29 @@ export function GameScreen() {
     setOrder(Array.from({ length: myRack.length }, (_, i) => i));
   }, [myRack]);
 
-  // iOS Safari ignores the viewport meta's zoom restrictions, so block its
-  // legacy pinch-gesture recognizer directly -- only BoardViewport's own
-  // custom pinch handling should be able to zoom anything on this screen.
+  // iOS Safari ignores the viewport meta's zoom restrictions and doesn't
+  // reliably honor touch-action:none on ancestors for the pinch/double-tap
+  // zoom gesture specifically, so block it directly at the source: Safari's
+  // legacy gesturestart event (fires before any native pinch-zoom), and any
+  // 2+-finger touch outside the board (covers Chrome/Android too). Only
+  // BoardViewport's own custom pinch handling should be able to zoom
+  // anything on this screen.
   useEffect(() => {
     const preventGesture = (e: Event) => e.preventDefault();
+    function blockMultiTouchOutsideBoard(e: TouchEvent) {
+      const target = e.target as Element | null;
+      if (e.touches.length > 1 && !target?.closest(".board-viewport")) {
+        e.preventDefault();
+      }
+    }
     document.addEventListener("gesturestart", preventGesture);
-    return () => document.removeEventListener("gesturestart", preventGesture);
+    document.addEventListener("touchstart", blockMultiTouchOutsideBoard, { passive: false });
+    document.addEventListener("touchmove", blockMultiTouchOutsideBoard, { passive: false });
+    return () => {
+      document.removeEventListener("gesturestart", preventGesture);
+      document.removeEventListener("touchstart", blockMultiTouchOutsideBoard);
+      document.removeEventListener("touchmove", blockMultiTouchOutsideBoard);
+    };
   }, []);
 
   if (!game) return <Spinner full />;

@@ -421,6 +421,9 @@ body {
   overflow: hidden;
   touch-action: none;
 }
+.game-screen .topbar {
+  touch-action: none;
+}
 .game-middle {
   flex: 1;
   min-height: 0;
@@ -428,12 +431,15 @@ body {
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
+  /* Allow vertical scroll (the overflow-y:auto safety net) but never zoom. */
+  touch-action: pan-y;
 }
 .bottom-bar {
   flex-shrink: 0;
   background: var(--bg);
   border-top: 1px solid var(--border);
   padding-bottom: env(safe-area-inset-bottom);
+  touch-action: none;
 }
 .rack-area {
   padding: 0.5rem 0.5rem 0;
@@ -466,6 +472,7 @@ body {
   justify-content: space-between;
   padding: 0.5rem 1rem;
   gap: 0.5rem;
+  touch-action: none;
 }
 .scorebar-player {
   display: flex;
