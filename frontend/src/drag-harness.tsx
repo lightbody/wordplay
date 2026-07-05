@@ -92,8 +92,15 @@ function Harness() {
 
   function positionGhost(x: number, y: number) {
     if (dragGhostRef.current) {
-      dragGhostRef.current.style.transform = `translate(${x}px, ${y}px) translate(-50%, -50%) scale(1.08)`;
+      dragGhostRef.current.style.transform = `translate(${x}px, ${y}px) translate(-50%, -50%)`;
     }
+  }
+
+  const GHOST_SCALE = 1.2;
+  function ghostSize(fallbackRect: DOMRect): number {
+    const rackTile = document.querySelector<HTMLElement>(".rack .tile");
+    const base = rackTile ? rackTile.getBoundingClientRect().width : fallbackRect.width;
+    return base * GHOST_SCALE;
   }
 
   function applyOrderPreview(hit: DropTarget | null) {
@@ -113,12 +120,13 @@ function Harness() {
     dragStartOrderRef.current = order;
     const letter = rack[rackIndex];
     const blank = letter === "?";
+    const size = ghostSize(rect);
     setDragActive({
       rackIndex,
       letter: blank ? "" : letter,
       blank,
-      width: rect.width,
-      height: rect.height,
+      width: size,
+      height: size,
       x,
       y,
       origin: { kind: "rack", rackIndex },
@@ -132,12 +140,13 @@ function Harness() {
     const pend = pending.find((p) => p.row === row && p.col === col);
     if (!pend) return;
     dragInfoRef.current = { kind: "board", rackIndex: pend.rackIndex, row, col };
+    const size = ghostSize(rect);
     setDragActive({
       rackIndex: pend.rackIndex,
       letter: pend.letter,
       blank: pend.blank,
-      width: rect.width,
-      height: rect.height,
+      width: size,
+      height: size,
       x,
       y,
       origin: { kind: "board", rackIndex: pend.rackIndex, row, col },
@@ -241,7 +250,7 @@ function Harness() {
           style={{
             width: dragActive.width,
             height: dragActive.height,
-            transform: `translate(${dragActive.x}px, ${dragActive.y}px) translate(-50%, -50%) scale(1.08)`,
+            transform: `translate(${dragActive.x}px, ${dragActive.y}px) translate(-50%, -50%)`,
           }}
         >
           <Tile letter={dragActive.letter} blank={dragActive.blank} />

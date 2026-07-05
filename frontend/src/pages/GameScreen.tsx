@@ -176,8 +176,18 @@ export function GameScreen() {
 
   function positionGhost(x: number, y: number) {
     if (dragGhostRef.current) {
-      dragGhostRef.current.style.transform = `translate(${x}px, ${y}px) translate(-50%, -50%) scale(1.08)`;
+      dragGhostRef.current.style.transform = `translate(${x}px, ${y}px) translate(-50%, -50%)`;
     }
+  }
+
+  // The floating drag ghost is always sized off the rack tile (not
+  // whatever was actually pressed), so it stays a consistent size whether
+  // the drag started on the rack or on a smaller board tile.
+  const GHOST_SCALE = 1.2;
+  function ghostSize(fallbackRect: DOMRect): number {
+    const rackTile = document.querySelector<HTMLElement>(".rack .tile");
+    const base = rackTile ? rackTile.getBoundingClientRect().width : fallbackRect.width;
+    return base * GHOST_SCALE;
   }
 
   // Live-previews the rack shifting to "make room" at the hovered slot,
@@ -203,12 +213,13 @@ export function GameScreen() {
     dragStartOrderRef.current = order;
     const letter = myRack[rackIndex];
     const blank = letter === "?";
+    const size = ghostSize(rect);
     setDragActive({
       rackIndex,
       letter: blank ? "" : letter,
       blank,
-      width: rect.width,
-      height: rect.height,
+      width: size,
+      height: size,
       x,
       y,
       origin: { kind: "rack", rackIndex },
@@ -223,12 +234,13 @@ export function GameScreen() {
     if (!pend) return;
     setError(null);
     dragInfoRef.current = { kind: "board", rackIndex: pend.rackIndex, row, col };
+    const size = ghostSize(rect);
     setDragActive({
       rackIndex: pend.rackIndex,
       letter: pend.letter,
       blank: pend.blank,
-      width: rect.width,
-      height: rect.height,
+      width: size,
+      height: size,
       x,
       y,
       origin: { kind: "board", rackIndex: pend.rackIndex, row, col },
@@ -495,7 +507,7 @@ export function GameScreen() {
           style={{
             width: dragActive.width,
             height: dragActive.height,
-            transform: `translate(${dragActive.x}px, ${dragActive.y}px) translate(-50%, -50%) scale(1.08)`,
+            transform: `translate(${dragActive.x}px, ${dragActive.y}px) translate(-50%, -50%)`,
           }}
         >
           <Tile letter={dragActive.letter} blank={dragActive.blank} />
