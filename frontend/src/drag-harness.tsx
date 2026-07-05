@@ -48,6 +48,10 @@ function Harness() {
   const dragGhostRef = useRef<HTMLDivElement>(null);
 
   const usedIndices = new Set(pending.map((p) => p.rackIndex));
+  const rackUsedIndices =
+    dragActive?.origin.kind === "board"
+      ? new Set([...usedIndices].filter((i) => i !== dragActive.rackIndex))
+      : usedIndices;
 
   function placeLetterAt(rackIndex: number, row: number, col: number) {
     const letter = rack[rackIndex];
@@ -106,7 +110,7 @@ function Harness() {
   function applyOrderPreview(hit: DropTarget | null) {
     const startOrder = dragStartOrderRef.current;
     const info = dragInfoRef.current;
-    if (startOrder === null || info?.kind !== "rack") return;
+    if (startOrder === null || info === null) return;
     if (hit?.type === "rack") {
       const from = startOrder.indexOf(info.rackIndex);
       setOrder(from === -1 ? startOrder : moveItem(startOrder, from, hit.index));
@@ -140,6 +144,7 @@ function Harness() {
     const pend = pending.find((p) => p.row === row && p.col === col);
     if (!pend) return;
     dragInfoRef.current = { kind: "board", rackIndex: pend.rackIndex, row, col };
+    dragStartOrderRef.current = order;
     const size = ghostSize(rect);
     setDragActive({
       rackIndex: pend.rackIndex,
@@ -151,7 +156,9 @@ function Harness() {
       y,
       origin: { kind: "board", rackIndex: pend.rackIndex, row, col },
     });
-    setDropTarget(dragHitTest(x, y));
+    const hit = dragHitTest(x, y);
+    setDropTarget(hit);
+    applyOrderPreview(hit);
   }
 
   function moveTileDrag(x: number, y: number) {
@@ -172,16 +179,15 @@ function Harness() {
     if (!info) return;
     const hit = dragHitTest(x, y);
 
+    if (hit?.type === "rack" && startOrder) {
+      const from = startOrder.indexOf(info.rackIndex);
+      setOrder(from === -1 ? startOrder : moveItem(startOrder, from, hit.index));
+    } else if (startOrder) {
+      setOrder(startOrder);
+    }
+
     if (info.kind === "rack") {
-      if (hit?.type === "board" && hit.valid) {
-        if (startOrder) setOrder(startOrder);
-        placeLetterAt(info.rackIndex, hit.row, hit.col);
-      } else if (hit?.type === "rack" && startOrder) {
-        const from = startOrder.indexOf(info.rackIndex);
-        setOrder(from === -1 ? startOrder : moveItem(startOrder, from, hit.index));
-      } else if (startOrder) {
-        setOrder(startOrder);
-      }
+      if (hit?.type === "board" && hit.valid) placeLetterAt(info.rackIndex, hit.row, hit.col);
       return;
     }
 
@@ -195,13 +201,12 @@ function Harness() {
   }
 
   function cancelTileDrag() {
-    const info = dragInfoRef.current;
     const startOrder = dragStartOrderRef.current;
     dragInfoRef.current = null;
     dragStartOrderRef.current = null;
     setDragActive(null);
     setDropTarget(null);
-    if (info?.kind === "rack" && startOrder) setOrder(startOrder);
+    if (startOrder) setOrder(startOrder);
   }
 
   return (
@@ -233,7 +238,7 @@ function Harness() {
           <Rack
             rack={rack}
             order={order}
-            usedIndices={usedIndices}
+            usedIndices={rackUsedIndices}
             draggingIndex={dragActive?.rackIndex ?? null}
             dropIndex={dropTarget?.type === "rack" ? dropTarget.index : null}
             onDragStart={startTileDrag}

@@ -102,6 +102,15 @@ export function GameScreen() {
   const awaiting = game.status === "awaiting_opponent";
   const usedIndices = new Set(pending.map((p) => p.rackIndex));
   const hasPending = usedIndices.size > 0;
+  // While dragging a tile off the board, briefly stop treating its rack
+  // slot as "used" so Rack renders it as a normal (currently hidden, via
+  // draggingIndex) slot instead of a gap -- that's what lets the other
+  // tiles slide to make room for it, the same as reordering within the
+  // rack, instead of the drag having nothing to visually preview against.
+  const rackUsedIndices =
+    dragActive?.origin.kind === "board"
+      ? new Set([...usedIndices].filter((i) => i !== dragActive.rackIndex))
+      : usedIndices;
 
   const phase: "finished" | "opening" | "sharing" | "playing" = finished
     ? "finished"
@@ -192,13 +201,15 @@ export function GameScreen() {
 
   // Live-previews the rack shifting to "make room" at the hovered slot,
   // recomputed from the drag's start order each time so it's idempotent
-  // regardless of the path the pointer took to get there. Only meaningful
-  // for a rack-origin drag -- a board-origin drag never touches `order`,
-  // since removing it from `pending` reveals it at its existing slot.
+  // regardless of the path the pointer took to get there. Applies equally
+  // to a board-origin drag: the dragged tile's rackIndex stays in `order`
+  // the whole time (only `pending` marks it as a gap), so sliding it to a
+  // new slot while still hovering the board tile is exactly the same
+  // computation as reordering from the rack.
   function applyOrderPreview(hit: DropTarget | null) {
     const startOrder = dragStartOrderRef.current;
     const info = dragInfoRef.current;
-    if (startOrder === null || info?.kind !== "rack") return;
+    if (startOrder === null || info === null) return;
     if (hit?.type === "rack") {
       const from = startOrder.indexOf(info.rackIndex);
       setOrder(from === -1 ? startOrder : moveItem(startOrder, from, hit.index));
@@ -234,6 +245,7 @@ export function GameScreen() {
     if (!pend) return;
     setError(null);
     dragInfoRef.current = { kind: "board", rackIndex: pend.rackIndex, row, col };
+    dragStartOrderRef.current = order;
     const size = ghostSize(rect);
     setDragActive({
       rackIndex: pend.rackIndex,
@@ -245,7 +257,9 @@ export function GameScreen() {
       y,
       origin: { kind: "board", rackIndex: pend.rackIndex, row, col },
     });
-    setDropTarget(dragHitTest(x, y));
+    const hit = dragHitTest(x, y);
+    setDropTarget(hit);
+    applyOrderPreview(hit);
   }
 
   function moveTileDrag(x: number, y: number) {
@@ -266,23 +280,27 @@ export function GameScreen() {
     if (!info) return;
     const hit = dragHitTest(x, y);
 
+    // Resolve the rack arrangement first, the same way regardless of where
+    // the drag started: dropping on the rack finalizes the tile at the
+    // hovered slot (letting a board-origin tile land anywhere, not just
+    // back where it started); anything else reverts to how the rack looked
+    // before this drag, undoing any "make room" preview from hovering it.
+    if (hit?.type === "rack" && startOrder) {
+      const from = startOrder.indexOf(info.rackIndex);
+      setOrder(from === -1 ? startOrder : moveItem(startOrder, from, hit.index));
+    } else if (startOrder) {
+      setOrder(startOrder);
+    }
+
     if (info.kind === "rack") {
-      if (hit?.type === "board" && hit.valid) {
-        if (startOrder) setOrder(startOrder);
-        placeLetterAt(info.rackIndex, hit.row, hit.col);
-      } else if (hit?.type === "rack" && startOrder) {
-        const from = startOrder.indexOf(info.rackIndex);
-        setOrder(from === -1 ? startOrder : moveItem(startOrder, from, hit.index));
-      } else if (startOrder) {
-        setOrder(startOrder);
-      }
+      if (hit?.type === "board" && hit.valid) placeLetterAt(info.rackIndex, hit.row, hit.col);
       return;
     }
 
     // Board-origin: dropping on the rack recalls the tile (it reappears at
-    // its existing rack slot once it's no longer pending); dropping on a
+    // whichever slot it was just reordered to above); dropping on a
     // different empty cell repositions it; anything else snaps back, which
-    // needs no state change since `pending` was never mutated mid-drag.
+    // needs no `pending` change since it was never mutated mid-drag.
     if (hit?.type === "rack") {
       setPending((p) => p.filter((t) => !(t.row === info.row && t.col === info.col)));
     } else if (hit?.type === "board" && hit.valid) {
@@ -293,13 +311,12 @@ export function GameScreen() {
   }
 
   function cancelTileDrag() {
-    const info = dragInfoRef.current;
     const startOrder = dragStartOrderRef.current;
     dragInfoRef.current = null;
     dragStartOrderRef.current = null;
     setDragActive(null);
     setDropTarget(null);
-    if (info?.kind === "rack" && startOrder) setOrder(startOrder);
+    if (startOrder) setOrder(startOrder);
   }
 
   function chooseBlank(letter: string) {
@@ -425,7 +442,7 @@ export function GameScreen() {
               <RackArea
                 rack={myRack}
                 order={orderedRack}
-                usedIndices={usedIndices}
+                usedIndices={rackUsedIndices}
                 draggingIndex={dragActive?.rackIndex ?? null}
                 dropIndex={dropTarget?.type === "rack" ? dropTarget.index : null}
                 onDragStart={startTileDrag}
@@ -448,7 +465,7 @@ export function GameScreen() {
               <RackArea
                 rack={myRack}
                 order={orderedRack}
-                usedIndices={usedIndices}
+                usedIndices={rackUsedIndices}
                 draggingIndex={dragActive?.rackIndex ?? null}
                 dropIndex={dropTarget?.type === "rack" ? dropTarget.index : null}
                 onDragStart={startTileDrag}
