@@ -14,6 +14,8 @@
   --tl: #60a5fa;
   --dw: #fbcfe8;
   --tw: #f9a8d4;
+  --cell-bg: #d8d8dc;
+  --board-line: #ffffff;
   --radius: 12px;
   --shadow: 0 2px 8px rgba(30, 30, 60, 0.08);
   --board-max: 540px;
@@ -31,6 +33,7 @@
     --tl: #2563eb;
     --dw: #6d283f;
     --tw: #9d3667;
+    --cell-bg: #4a4a53;
   }
 }
 
@@ -333,7 +336,7 @@ body {
   gap: 2px;
   width: 100%;
   height: 100%;
-  background: var(--border);
+  background: var(--board-line);
   border: 2px solid var(--border);
   border-radius: 8px;
   padding: 2px;
@@ -343,8 +346,8 @@ body {
   aspect-ratio: 1;
   min-width: 0;
   border: none;
-  border-radius: 3px;
-  background: var(--card);
+  border-radius: 8px 0 8px 0;
+  background: var(--cell-bg);
   display: grid;
   place-items: center;
   padding: 0;
