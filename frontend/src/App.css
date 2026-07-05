@@ -10,10 +10,10 @@
   --tile: #fcefc7;
   --tile-border: #e0b64d;
   --tile-text: #3a2f10;
-  --dl: #bfdbfe;
-  --tl: #60a5fa;
-  --dw: #fbcfe8;
-  --tw: #f9a8d4;
+  --dl: #f5e29b;
+  --tl: #a8dfb8;
+  --dw: #b8d4f5;
+  --tw: #f5b8d8;
   --cell-bg: #d8d8dc;
   --board-line: #ffffff;
   --radius: 12px;
@@ -29,10 +29,10 @@
     --muted: #9aa0c0;
     --border: #2d3048;
     --tile: #f5e6b8;
-    --dl: #1e3a5f;
-    --tl: #2563eb;
-    --dw: #6d283f;
-    --tw: #9d3667;
+    --dl: #6b5f2e;
+    --tl: #2f5c40;
+    --dw: #2c4a6e;
+    --tw: #6b3350;
     --cell-bg: #4a4a53;
   }
 }
