@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { moveItem } from "./dragMath";
+import { moveItem, rackColumnAt } from "./dragMath";
 
 describe("moveItem", () => {
   it("moves an item forward", () => {
@@ -25,5 +25,28 @@ describe("moveItem", () => {
     const arr = [0, 1, 2, 3];
     moveItem(arr, 0, 3);
     expect(arr).toEqual([0, 1, 2, 3]);
+  });
+});
+
+describe("rackColumnAt", () => {
+  it("picks the first column at the left edge", () => {
+    expect(rackColumnAt(0, 0, 700, 7)).toBe(0);
+  });
+
+  it("picks the last column at the right edge", () => {
+    expect(rackColumnAt(699, 0, 700, 7)).toBe(6);
+  });
+
+  it("picks the middle column in the middle", () => {
+    expect(rackColumnAt(350, 0, 700, 7)).toBe(3);
+  });
+
+  it("clamps points outside the rect", () => {
+    expect(rackColumnAt(-50, 0, 700, 7)).toBe(0);
+    expect(rackColumnAt(5000, 0, 700, 7)).toBe(6);
+  });
+
+  it("accounts for a non-zero rect offset", () => {
+    expect(rackColumnAt(120, 100, 700, 7)).toBe(0);
   });
 });

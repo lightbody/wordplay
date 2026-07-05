@@ -3,7 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { LayoutGroup } from "motion/react";
 import { ApiError } from "../api";
 import { checkPlacement, isEmpty } from "../engine";
-import { moveItem } from "../dragMath";
+import { moveItem, rackColumnAt } from "../dragMath";
 import { useApi, useProfile } from "../profile";
 import { useGamesShape, useMovesShape, useRacksShape } from "../shapes";
 import type { Game, PendingTile, PlacedTileDto } from "../types";
@@ -48,7 +48,7 @@ export function GameScreen() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [dragActive, setDragActive] = useState<{
-    displayIndex: number;
+    rackIndex: number;
     letter: string;
     width: number;
     height: number;
@@ -56,7 +56,8 @@ export function GameScreen() {
     y: number;
   } | null>(null);
   const [dropTarget, setDropTarget] = useState<DropTarget | null>(null);
-  const dragInfoRef = useRef<{ rackIndex: number; displayIndex: number } | null>(null);
+  const dragInfoRef = useRef<number | null>(null);
+  const dragStartOrderRef = useRef<number[] | null>(null);
   const dragGhostRef = useRef<HTMLDivElement>(null);
 
   // Reset transient move state when the rack changes (i.e. after any move).
@@ -143,6 +144,18 @@ export function GameScreen() {
   }
 
   function dragHitTest(clientX: number, clientY: number): DropTarget | null {
+    // Rack columns are computed from the container's own (static) bounding
+    // box rather than via elementFromPoint: reordering animates sibling
+    // tiles' rendered position with `layout`, and elementFromPoint measures
+    // the painted/transformed box, which can transiently overlap a
+    // neighboring column mid-slide. The rack container itself never moves.
+    const rackEl = document.querySelector(".rack");
+    if (rackEl) {
+      const rect = rackEl.getBoundingClientRect();
+      if (clientX >= rect.left && clientX <= rect.right && clientY >= rect.top && clientY <= rect.bottom) {
+        return { type: "rack", index: rackColumnAt(clientX, rect.left, rect.width, order.length) };
+      }
+    }
     const el = document.elementFromPoint(clientX, clientY);
     if (!el) return null;
     const cellEl = el.closest<HTMLElement>("[data-board-row]");
@@ -152,8 +165,6 @@ export function GameScreen() {
       const occupied = !isEmpty(game!.board, row, col) || pending.some((p) => p.row === row && p.col === col);
       return { type: "board", row, col, valid: myTurn && !finished && !occupied };
     }
-    const slotEl = el.closest<HTMLElement>("[data-rack-slot]");
-    if (slotEl) return { type: "rack", index: Number(slotEl.dataset.rackSlot) };
     return null;
   }
 
@@ -167,47 +178,71 @@ export function GameScreen() {
 
   function positionGhost(x: number, y: number) {
     if (dragGhostRef.current) {
-      dragGhostRef.current.style.transform = `translate(${x}px, ${y}px) translate(-50%, -50%)`;
+      dragGhostRef.current.style.transform = `translate(${x}px, ${y}px) translate(-50%, -50%) scale(1.08)`;
     }
   }
 
-  function startTileDrag(displayIndex: number, rackIndex: number, letter: string, x: number, y: number, rect: DOMRect) {
+  // Live-previews the rack shifting to "make room" at the hovered slot,
+  // recomputed from the drag's start order each time so it's idempotent
+  // regardless of the path the pointer took to get there.
+  function applyOrderPreview(hit: DropTarget | null) {
+    const startOrder = dragStartOrderRef.current;
+    const rackIndex = dragInfoRef.current;
+    if (startOrder === null || rackIndex === null) return;
+    if (hit?.type === "rack") {
+      const from = startOrder.indexOf(rackIndex);
+      setOrder(from === -1 ? startOrder : moveItem(startOrder, from, hit.index));
+    } else {
+      setOrder(startOrder);
+    }
+  }
+
+  function startTileDrag(rackIndex: number, x: number, y: number, rect: DOMRect) {
     setError(null);
     setSelected(null);
-    dragInfoRef.current = { rackIndex, displayIndex };
-    setDragActive({ displayIndex, letter, width: rect.width, height: rect.height, x, y });
-    setDropTarget(dragHitTest(x, y));
+    dragInfoRef.current = rackIndex;
+    dragStartOrderRef.current = order;
+    setDragActive({ rackIndex, letter: myRack[rackIndex], width: rect.width, height: rect.height, x, y });
+    const hit = dragHitTest(x, y);
+    setDropTarget(hit);
+    applyOrderPreview(hit);
   }
 
   function moveTileDrag(x: number, y: number) {
     positionGhost(x, y);
-    setDropTarget((prev) => {
-      const next = dragHitTest(x, y);
-      return sameDropTarget(prev, next) ? prev : next;
-    });
+    const next = dragHitTest(x, y);
+    if (sameDropTarget(dropTarget, next)) return;
+    setDropTarget(next);
+    applyOrderPreview(next);
   }
 
   function endTileDrag(x: number, y: number) {
-    const info = dragInfoRef.current;
+    const rackIndex = dragInfoRef.current;
+    const startOrder = dragStartOrderRef.current;
     dragInfoRef.current = null;
+    dragStartOrderRef.current = null;
     setDragActive(null);
     setDropTarget(null);
-    if (!info) return;
+    if (rackIndex === null) return;
     const hit = dragHitTest(x, y);
     if (hit?.type === "board" && hit.valid) {
-      placeLetterAt(info.rackIndex, hit.row, hit.col);
-    } else if (hit?.type === "rack" && hit.index !== info.displayIndex) {
-      setOrder((o) => {
-        const from = o.indexOf(info.rackIndex);
-        return from === -1 ? o : moveItem(o, from, hit.index);
-      });
+      if (startOrder) setOrder(startOrder);
+      placeLetterAt(rackIndex, hit.row, hit.col);
+    } else if (hit?.type === "rack" && startOrder) {
+      const from = startOrder.indexOf(rackIndex);
+      setOrder(from === -1 ? startOrder : moveItem(startOrder, from, hit.index));
+    } else if (startOrder) {
+      setOrder(startOrder);
     }
   }
 
   function cancelTileDrag() {
+    const startOrder = dragStartOrderRef.current;
     dragInfoRef.current = null;
+    dragStartOrderRef.current = null;
     setDragActive(null);
     setDropTarget(null);
+    if (startOrder) setOrder(startOrder);
   }
 
   function chooseBlank(letter: string) {
@@ -333,7 +368,7 @@ export function GameScreen() {
                   usedIndices={usedIndices}
                   selected={selected}
                   onSelect={selectRackTile}
-                  draggingIndex={dragActive?.displayIndex ?? null}
+                  draggingIndex={dragActive?.rackIndex ?? null}
                   dropIndex={dropTarget?.type === "rack" ? dropTarget.index : null}
                   onDragStart={startTileDrag}
                   onDragMove={moveTileDrag}
@@ -358,7 +393,7 @@ export function GameScreen() {
                   usedIndices={usedIndices}
                   selected={selected}
                   onSelect={selectRackTile}
-                  draggingIndex={dragActive?.displayIndex ?? null}
+                  draggingIndex={dragActive?.rackIndex ?? null}
                   dropIndex={dropTarget?.type === "rack" ? dropTarget.index : null}
                   onDragStart={startTileDrag}
                   onDragMove={moveTileDrag}
@@ -417,7 +452,7 @@ export function GameScreen() {
           style={{
             width: dragActive.width,
             height: dragActive.height,
-            transform: `translate(${dragActive.x}px, ${dragActive.y}px) translate(-50%, -50%)`,
+            transform: `translate(${dragActive.x}px, ${dragActive.y}px) translate(-50%, -50%) scale(1.08)`,
           }}
         >
           <Tile letter={dragActive.letter === "?" ? "" : dragActive.letter} blank={dragActive.letter === "?"} />
@@ -444,31 +479,25 @@ function RackArea({
   order: number[];
   usedIndices: Set<number>;
   selected: number | null;
-  onSelect: (i: number) => void;
+  onSelect: (rackIndex: number) => void;
   draggingIndex: number | null;
   dropIndex: number | null;
-  onDragStart: (displayIndex: number, rackIndex: number, letter: string, x: number, y: number, rect: DOMRect) => void;
+  onDragStart: (rackIndex: number, x: number, y: number, rect: DOMRect) => void;
   onDragMove: (x: number, y: number) => void;
   onDragEnd: (x: number, y: number) => void;
   onDragCancel: () => void;
 }) {
-  const reordered = order.map((i) => rack[i]).join("");
-  const usedInDisplay = new Set(
-    [...usedIndices].map((orig) => order.indexOf(orig)).filter((i) => i >= 0),
-  );
-  const remap = new Map(order.map((orig, pos) => [pos, orig]));
   return (
     <div className="rack-area">
       <Rack
-        letters={reordered}
-        usedIndices={usedInDisplay}
-        selectedIndex={selected === null ? null : order.indexOf(selected)}
-        onSelect={(displayIndex) => onSelect(remap.get(displayIndex)!)}
+        rack={rack}
+        order={order}
+        usedIndices={usedIndices}
+        selectedIndex={selected}
+        onSelect={onSelect}
         draggingIndex={draggingIndex}
         dropIndex={dropIndex}
-        onDragStart={(displayIndex, x, y, rect) =>
-          onDragStart(displayIndex, remap.get(displayIndex)!, reordered[displayIndex], x, y, rect)
-        }
+        onDragStart={onDragStart}
         onDragMove={onDragMove}
         onDragEnd={onDragEnd}
         onDragCancel={onDragCancel}

@@ -420,9 +420,6 @@ body {
 .tile-blank {
   background: linear-gradient(180deg, #fff, #f0f0f5);
 }
-.tile-dragging {
-  opacity: 0.25;
-}
 
 .drag-ghost {
   position: fixed;

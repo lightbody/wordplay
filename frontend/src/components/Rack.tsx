@@ -1,20 +1,25 @@
 import { useRef } from "react";
-import { AnimatePresence } from "motion/react";
+import { AnimatePresence, motion } from "motion/react";
 import { DRAG_THRESHOLD } from "../dragMath";
 import { Tile } from "./Tile";
 
+const SLOT_TRANSITION = { type: "spring", stiffness: 500, damping: 30 } as const;
+
 interface RackProps {
-  /** Full rack letters (includes tiles currently placed as pending). */
-  letters: string;
-  /** Rack indices currently placed on the board (rendered as gaps). */
+  /** Full (unordered) rack letters. */
+  rack: string;
+  /** Display position -> original rack index. */
+  order: number[];
+  /** Original rack indices currently placed on the board (rendered as gaps). */
   usedIndices: Set<number>;
+  /** Original rack index of the currently selected tile, if any. */
   selectedIndex: number | null;
-  onSelect: (index: number) => void;
-  /** Display index of the tile currently being drag-picked-up, if any. */
+  onSelect: (rackIndex: number) => void;
+  /** Original rack index of the tile currently being drag-picked-up, if any. */
   draggingIndex?: number | null;
-  /** Display index of the rack slot currently hovered as a reorder target. */
+  /** Display position currently hovered as a reorder target. */
   dropIndex?: number | null;
-  onDragStart?: (index: number, clientX: number, clientY: number, rect: DOMRect) => void;
+  onDragStart?: (rackIndex: number, clientX: number, clientY: number, rect: DOMRect) => void;
   onDragMove?: (clientX: number, clientY: number) => void;
   onDragEnd?: (clientX: number, clientY: number) => void;
   onDragCancel?: () => void;
@@ -26,7 +31,8 @@ function swallowClick(e: Event) {
 }
 
 export function Rack({
-  letters,
+  rack,
+  order,
   usedIndices,
   selectedIndex,
   onSelect,
@@ -37,14 +43,14 @@ export function Rack({
   onDragEnd,
   onDragCancel,
 }: RackProps) {
-  const gesture = useRef<{ pointerId: number; index: number; startX: number; startY: number; dragging: boolean } | null>(
+  const gesture = useRef<{ pointerId: number; rackIndex: number; startX: number; startY: number; dragging: boolean } | null>(
     null,
   );
 
-  function handlePointerDown(e: React.PointerEvent<HTMLButtonElement>, index: number) {
+  function handlePointerDown(e: React.PointerEvent<HTMLButtonElement>, rackIndex: number) {
     if (e.pointerType === "mouse" && e.button !== 0) return;
     e.currentTarget.setPointerCapture(e.pointerId);
-    gesture.current = { pointerId: e.pointerId, index, startX: e.clientX, startY: e.clientY, dragging: false };
+    gesture.current = { pointerId: e.pointerId, rackIndex, startX: e.clientX, startY: e.clientY, dragging: false };
   }
 
   function handlePointerMove(e: React.PointerEvent<HTMLButtonElement>) {
@@ -55,7 +61,7 @@ export function Rack({
       const dy = e.clientY - g.startY;
       if (Math.hypot(dx, dy) < DRAG_THRESHOLD) return;
       g.dragging = true;
-      onDragStart?.(g.index, e.clientX, e.clientY, e.currentTarget.getBoundingClientRect());
+      onDragStart?.(g.rackIndex, e.clientX, e.clientY, e.currentTarget.getBoundingClientRect());
     }
     onDragMove?.(e.clientX, e.clientY);
   }
@@ -80,29 +86,45 @@ export function Rack({
   return (
     <div className="rack">
       <AnimatePresence>
-        {letters.split("").map((letter, i) => {
-          if (usedIndices.has(i)) {
-            return <div key={i} className="rack-slot rack-slot-empty" data-rack-slot={i} />;
+        {order.map((rackIndex, displayIndex) => {
+          // Keying by the stable rack index (not display position) is what
+          // makes reordering a real DOM move rather than a prop update, so
+          // motion's `layout` can FLIP-animate the slide.
+          if (usedIndices.has(rackIndex)) {
+            return (
+              <motion.div
+                layout
+                transition={SLOT_TRANSITION}
+                key={rackIndex}
+                className="rack-slot rack-slot-empty"
+                data-rack-slot={displayIndex}
+              />
+            );
           }
+          const letter = rack[rackIndex];
           return (
-            <div
-              key={i}
-              className={["rack-slot", dropIndex === i ? "rack-slot-drop-target" : ""].filter(Boolean).join(" ")}
-              data-rack-slot={i}
+            <motion.div
+              layout
+              transition={SLOT_TRANSITION}
+              key={rackIndex}
+              className={["rack-slot", dropIndex === displayIndex ? "rack-slot-drop-target" : ""]
+                .filter(Boolean)
+                .join(" ")}
+              data-rack-slot={displayIndex}
             >
               <Tile
                 letter={letter === "?" ? "" : letter}
                 blank={letter === "?"}
-                layoutId={`tile-${i}`}
-                selected={selectedIndex === i}
-                dragging={draggingIndex === i}
-                onClick={() => onSelect(i)}
-                onPointerDown={(e) => handlePointerDown(e, i)}
+                layoutId={`tile-${rackIndex}`}
+                selected={selectedIndex === rackIndex}
+                dragging={draggingIndex === rackIndex}
+                onClick={() => onSelect(rackIndex)}
+                onPointerDown={(e) => handlePointerDown(e, rackIndex)}
                 onPointerMove={handlePointerMove}
                 onPointerUp={handlePointerUp}
                 onPointerCancel={handlePointerCancel}
               />
-            </div>
+            </motion.div>
           );
         })}
       </AnimatePresence>
