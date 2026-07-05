@@ -10,10 +10,12 @@
   --tile: #fcefc7;
   --tile-border: #e0b64d;
   --tile-text: #3a2f10;
-  --dl: #bfdbfe;
-  --tl: #60a5fa;
-  --dw: #fbcfe8;
-  --tw: #f9a8d4;
+  --dl: #f5e29b;
+  --tl: #a8dfb8;
+  --dw: #b8d4f5;
+  --tw: #f5b8d8;
+  --cell-bg: #d8d8dc;
+  --board-line: #ffffff;
   --radius: 12px;
   --shadow: 0 2px 8px rgba(30, 30, 60, 0.08);
   --board-max: 540px;
@@ -27,10 +29,11 @@
     --muted: #9aa0c0;
     --border: #2d3048;
     --tile: #f5e6b8;
-    --dl: #1e3a5f;
-    --tl: #2563eb;
-    --dw: #6d283f;
-    --tw: #9d3667;
+    --dl: #6b5f2e;
+    --tl: #2f5c40;
+    --dw: #2c4a6e;
+    --tw: #6b3350;
+    --cell-bg: #4a4a53;
   }
 }
 
@@ -333,7 +336,7 @@ body {
   gap: 2px;
   width: 100%;
   height: 100%;
-  background: var(--border);
+  background: var(--board-line);
   border: 2px solid var(--border);
   border-radius: 8px;
   padding: 2px;
@@ -343,8 +346,8 @@ body {
   aspect-ratio: 1;
   min-width: 0;
   border: none;
-  border-radius: 3px;
-  background: var(--card);
+  border-radius: 8px 0 8px 0;
+  background: var(--cell-bg);
   display: grid;
   place-items: center;
   padding: 0;
@@ -357,7 +360,7 @@ body {
 .cell-tw { background: var(--tw); }
 .cell-center { background: var(--dw); }
 .cell-premium {
-  font-size: clamp(6px, 1.4vw, 10px);
+  font-size: clamp(8px, 2vw, 14px);
   font-weight: 700;
   color: var(--text);
   opacity: 0.65;
