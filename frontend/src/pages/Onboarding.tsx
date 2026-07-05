@@ -15,6 +15,16 @@ export function Onboarding() {
   const [error, setError] = useState<string | null>(null);
   const debounce = useRef<number>();
 
+  // Always call the latest getApi without making it an effect dependency:
+  // useApi() (like most hook factories) may return a new function identity
+  // on renders unrelated to the username field, and including it in the
+  // deps array below would re-run the debounce on every such render —
+  // perpetually resetting status back to "checking" right as it resolves.
+  const getApiRef = useRef(getApi);
+  useEffect(() => {
+    getApiRef.current = getApi;
+  }, [getApi]);
+
   useEffect(() => {
     window.clearTimeout(debounce.current);
     const trimmed = username.trim();
@@ -29,7 +39,7 @@ export function Onboarding() {
     setStatus("checking");
     debounce.current = window.setTimeout(async () => {
       try {
-        const api = await getApi();
+        const api = await getApiRef.current();
         const res = await api.checkUsername(trimmed);
         setStatus(res.available ? "available" : "taken");
       } catch {
@@ -37,7 +47,7 @@ export function Onboarding() {
       }
     }, 350);
     return () => window.clearTimeout(debounce.current);
-  }, [username, getApi]);
+  }, [username]);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();

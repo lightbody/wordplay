@@ -1,4 +1,4 @@
-import { createContext, useContext } from "react";
+import { createContext, useCallback, useContext } from "react";
 import { useAuth } from "@workos-inc/authkit-react";
 import { createApi } from "./api";
 import type { Profile } from "./types";
@@ -26,5 +26,8 @@ export function useProfileContext() {
 /** Build an authed API client bound to a freshly fetched access token. */
 export function useApi() {
   const { getAccessToken } = useAuth();
-  return async () => createApi(await getAccessToken());
+  // Stable identity across renders: without this, every consumer that
+  // depends on the returned function (e.g. in a useEffect array) re-runs
+  // on every render, not just when auth state actually changes.
+  return useCallback(async () => createApi(await getAccessToken()), [getAccessToken]);
 }
