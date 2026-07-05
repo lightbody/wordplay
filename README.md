@@ -1,5 +1,3 @@
-TEST
-
 # Wordplay
 
 A Scrabble-like, two-player, turn-based word game. Play at
