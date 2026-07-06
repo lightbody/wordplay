@@ -34,30 +34,25 @@ const PREMIUM_LABEL: Record<string, string> = {
 // rather than a tap-to-remove. Matches the rack's own DRAG_THRESHOLD.
 const DRAG_THRESHOLD = 8;
 
-// How far (px) a highlight fill bleeds *outward* past a cell that sits on
-// the true outer perimeter of the shape, so the highlight reads as a margin
-///frame around the whole word rather than hugging each tile's edge.
-// Interior sides (shared with another cell of the same shape) get no bleed
-// at all -- the tiles there are already flush (see tileBleedStyle/the
-// squareTL/squareBR corner logic below), so there's no seam for the fill to
-// need to cover.
-const FILL_MARGIN = 5;
-const FILL_RADIUS = 12;
+// How far (px) a highlight fill bleeds past a cell's own boundary on every
+// side, always -- toward a same-shape neighbor (guaranteeing no grid-line
+// sliver ever shows between two highlighted cells, independent of whether
+// the tiles' own bleed covers it) and outward past the shape's true outer
+// edge (reading as a margin/frame around the whole word).
+const FILL_MARGIN = 4;
 
-/** Style for the highlight fill layer of one cell: extends past the cell on
- * any side that's an outer edge of the shape (creating the visible margin),
- * stays flush on interior sides, and only rounds the corners that sit on two
- * outer edges (the shape's own corners), matching the board's diagonal
- * top-left/bottom-right cut. */
-function fillStyle(edge: EdgeSet, background: string): React.CSSProperties {
+/** Style for the highlight fill layer of one cell: bleeds past every side by
+ * FILL_MARGIN and stays fully square (no rounded corners at all, unlike the
+ * tiles) so it never leaves a gap and never mimics the tile's own corner
+ * cut. */
+function fillStyle(background: string): React.CSSProperties {
   return {
-    top: edge.top ? -FILL_MARGIN : 0,
-    right: edge.right ? -FILL_MARGIN : 0,
-    bottom: edge.bottom ? -FILL_MARGIN : 0,
-    left: edge.left ? -FILL_MARGIN : 0,
+    top: -FILL_MARGIN,
+    right: -FILL_MARGIN,
+    bottom: -FILL_MARGIN,
+    left: -FILL_MARGIN,
     background,
-    borderTopLeftRadius: edge.top && edge.left ? FILL_RADIUS : 0,
-    borderBottomRightRadius: edge.bottom && edge.right ? FILL_RADIUS : 0,
+    borderRadius: 0,
   };
 }
 
@@ -238,9 +233,9 @@ export function Board({
       // -- in practice the two never actually land on the same cell, since
       // pending tiles only ever occupy cells that were previously empty.
       const fill = wordEdge
-        ? { style: fillStyle(wordEdge, "var(--word-fill)") }
+        ? { style: fillStyle("var(--word-fill)") }
         : lastEdge
-          ? { style: fillStyle(lastEdge, "var(--last-move-fill)") }
+          ? { style: fillStyle("var(--last-move-fill)") }
           : null;
 
       cells.push(

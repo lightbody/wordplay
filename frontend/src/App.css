@@ -424,6 +424,14 @@ textarea {
   background: var(--tile-board);
 }
 .tile-small {
+  /* Board tiles are positioned via an inline inset (position/top/right/
+   * bottom/left set by Board's tileBleedStyle) so they can bleed past
+   * their own cell into the grid gap toward a neighboring tile -- a fixed
+   * width/height/aspect-ratio here would win over that inset and silently
+   * cancel the bleed, leaving the grid line visible between tiles. */
+  width: auto;
+  height: auto;
+  aspect-ratio: unset;
   box-shadow: 0 1px 1px rgba(0, 0, 0, 0.2);
   border-radius: 8px 0 8px 0;
 }
