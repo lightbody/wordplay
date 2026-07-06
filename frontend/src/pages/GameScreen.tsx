@@ -6,6 +6,8 @@ import { moveItem, rackColumnAt } from "../dragMath";
 import { useApi, useProfile } from "../profile";
 import { useGamesShape, useMovesShape, useRacksShape } from "../shapes";
 import type { Game, PendingTile, PlacedTileDto } from "../types";
+import type { Cell } from "../boardOutline";
+import { checkPlacementWasm, toWireTile, useEngineStatus } from "../wasmEngine";
 import { Board } from "../components/Board";
 import { BoardViewport } from "../components/BoardViewport";
 import { Rack } from "../components/Rack";
@@ -62,6 +64,7 @@ export function GameScreen() {
   const dragInfoRef = useRef<DragSource | null>(null);
   const dragStartOrderRef = useRef<number[] | null>(null);
   const dragGhostRef = useRef<HTMLDivElement>(null);
+  const engineStatus = useEngineStatus();
 
   // Reset transient move state when the rack changes (i.e. after any move).
   useEffect(() => {
@@ -125,7 +128,26 @@ export function GameScreen() {
   if (lastPlay?.tiles) for (const t of lastPlay.tiles) lastMove.add(`${t.row},${t.col}`);
 
   const placement = checkPlacement(game.board, pending);
-  const canPlay = myTurn && !finished && pending.length > 0 && placement.valid && !busy;
+
+  // Dictionary-aware gating: while the wasm engine is still loading, block
+  // Play outright rather than fall back to structural-only checks -- there's
+  // no more a friendly per-word error message to fall back on if the server
+  // rejects an undetected bad word, and this window is normally well under a
+  // second (loadEngine() starts at app boot, long before a move is ready).
+  // If the engine failed to load entirely, degrade to exactly the
+  // structural-only gating this app had before this feature existed.
+  const wasmResult = engineStatus === "ready" ? checkPlacementWasm(game.board, myRack, pending.map(toWireTile)) : null;
+  const loadingBlock = engineStatus === "loading" && pending.length > 0;
+  const wordsValid = placement.valid && (engineStatus !== "ready" || (wasmResult?.valid ?? false));
+  const canPlay = myTurn && !finished && pending.length > 0 && !busy && !loadingBlock && wordsValid;
+  const highlightCells: Cell[] = wasmResult?.valid ? dedupeCells(wasmResult.words.flatMap((w) => w.cells)) : [];
+
+  function playLabel(prefix: string): string {
+    if (loadingBlock) return `${prefix} (checking dictionary…)`;
+    if (!wordsValid || pending.length === 0) return prefix;
+    const score = engineStatus === "ready" ? (wasmResult?.score ?? placement.score) : placement.score;
+    return `${prefix} (${score})`;
+  }
 
   function placeLetterAt(rackIndex: number, row: number, col: number) {
     const letter = myRack[rackIndex];
@@ -422,6 +444,7 @@ export function GameScreen() {
             onTileDragMove={moveTileDrag}
             onTileDragEnd={endTileDrag}
             onTileDragCancel={cancelTileDrag}
+            highlightCells={highlightCells}
           />
         </BoardViewport>
 
@@ -454,7 +477,7 @@ export function GameScreen() {
                   {hasPending ? "Recall" : "Shuffle"}
                 </button>
                 <button className="btn btn-primary" disabled={!canPlay} onClick={submitPlay}>
-                  Play opening {placement.valid ? `(${placement.score})` : ""}
+                  {playLabel("Play opening")}
                 </button>
               </div>
               <p className="hint-text">Play your opening word, then invite an opponent.</p>
@@ -482,7 +505,7 @@ export function GameScreen() {
                   {hasPending ? "Recall" : "Shuffle"}
                 </button>
                 <button className="btn btn-primary" disabled={!canPlay} onClick={submitPlay}>
-                  Play {placement.valid && pending.length > 0 ? `(${placement.score})` : ""}
+                  {playLabel("Play")}
                 </button>
               </div>
             </>
@@ -569,12 +592,23 @@ function RackArea({
   );
 }
 
+/** wasm word results can repeat a cell (e.g. the pivot a cross word shares
+ * with the main word), so dedupe before tracing the outline perimeter. */
+function dedupeCells(cells: Cell[]): Cell[] {
+  const seen = new Set<string>();
+  const result: Cell[] = [];
+  for (const c of cells) {
+    const key = `${c[0]},${c[1]}`;
+    if (!seen.has(key)) {
+      seen.add(key);
+      result.push(c);
+    }
+  }
+  return result;
+}
+
 function describeError(e: unknown): string {
   if (e instanceof ApiError) {
-    if (e.code === "invalid_words") {
-      const words = (e.detail.words as string[] | undefined) ?? [];
-      return `Not in dictionary: ${words.join(", ")}`;
-    }
     const map: Record<string, string> = {
       not_your_turn: "It's not your turn.",
       first_move_must_cover_center: "Opening move must cover the center star.",

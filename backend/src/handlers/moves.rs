@@ -13,6 +13,7 @@ use crate::{
     auth::AuthUser,
     engine::{
         board::Board,
+        dictionary,
         endgame::{self, EndReason},
         moves::{validate_play, PlayError},
         tiles::{self, RACK_SIZE},
@@ -107,7 +108,7 @@ pub async fn make_move(
     match req {
         MoveRequest::Play { tiles } => {
             move_type = "play";
-            let outcome = validate_play(&board, &rack, &tiles).map_err(play_error)?;
+            let outcome = validate_play(&board, &rack, &tiles, &dictionary::WORDS).map_err(play_error)?;
             board = outcome.new_board;
             rack = outcome.remaining_rack;
             tiles::draw(&mut bag, &mut rack);

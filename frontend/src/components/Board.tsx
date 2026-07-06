@@ -1,7 +1,10 @@
-import { useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { cellAt, N, premium } from "../engine";
+import { outlinePath, type Cell } from "../boardOutline";
 import type { PendingTile } from "../types";
 import { Tile } from "./Tile";
+
+const OUTLINE_GAP = 2;
 
 interface BoardProps {
   board: string;
@@ -17,6 +20,8 @@ interface BoardProps {
   onTileDragMove?: (clientX: number, clientY: number) => void;
   onTileDragEnd?: (clientX: number, clientY: number) => void;
   onTileDragCancel?: () => void;
+  /** Cells spanning every newly-formed word, for the gold validity outline. */
+  highlightCells?: Cell[];
 }
 
 const PREMIUM_LABEL: Record<string, string> = {
@@ -42,8 +47,26 @@ export function Board({
   onTileDragMove,
   onTileDragEnd,
   onTileDragCancel,
+  highlightCells,
 }: BoardProps) {
   const pendingAt = new Map(pending.map((t) => [`${t.row},${t.col}`, t]));
+
+  const boardRef = useRef<HTMLDivElement>(null);
+  const [boardSizePx, setBoardSizePx] = useState(0);
+
+  useEffect(() => {
+    const el = boardRef.current;
+    if (!el) return;
+    // contentRect excludes .board's own border+padding, matching the pixel
+    // area the 15x15 grid tracks actually occupy, and stays correct through
+    // BoardViewport's pinch/pan scale() transform (an ancestor, not this
+    // element) without recomputing on every zoom frame.
+    const observer = new ResizeObserver((entries) => {
+      setBoardSizePx(entries[0].contentRect.width);
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
 
   // Pointer handling lives on the stable `.board` container rather than on
   // individual cells, same reasoning as Rack: it's immune to any future
@@ -178,15 +201,26 @@ export function Board({
     }
   }
 
+  const outline =
+    boardSizePx > 0 && highlightCells && highlightCells.length > 0
+      ? outlinePath(highlightCells, boardSizePx, OUTLINE_GAP)
+      : null;
+
   return (
     <div
       className="board"
+      ref={boardRef}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
       onPointerCancel={handlePointerCancel}
     >
       {cells}
+      {outline && (
+        <svg className="board-outline" width={boardSizePx} height={boardSizePx}>
+          <path d={outline} className="board-outline-path" />
+        </svg>
+      )}
     </div>
   );
 }

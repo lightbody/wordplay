@@ -3,7 +3,7 @@
 use serde::{Deserialize, Serialize};
 
 use super::board::{Board, EMPTY, N};
-use super::dictionary;
+use super::dictionary::Dictionary;
 use super::scoring::{self, WordScore};
 use super::tiles::RACK_SIZE;
 
@@ -65,13 +65,20 @@ pub struct PlayOutcome {
     pub remaining_rack: String,
     /// Main word first, then cross words.
     pub words: Vec<WordScore>,
+    /// Cell coordinates of each formed word, same order as `words`.
+    pub word_cells: Vec<Vec<(usize, usize)>>,
     pub total: i32,
     /// True when all 7 rack tiles were placed (earns the 50-pt bonus).
     #[cfg_attr(not(test), allow(dead_code))]
     pub bingo: bool,
 }
 
-pub fn validate_play(board: &Board, rack: &str, tiles: &[PlacedTile]) -> Result<PlayOutcome, PlayError> {
+pub fn validate_play(
+    board: &Board,
+    rack: &str,
+    tiles: &[PlacedTile],
+    dict: &Dictionary,
+) -> Result<PlayOutcome, PlayError> {
     if tiles.is_empty() {
         return Err(PlayError::NoTiles);
     }
@@ -209,7 +216,7 @@ pub fn validate_play(board: &Board, rack: &str, tiles: &[PlacedTile]) -> Result<
     let texts: Vec<String> = word_cells.iter().map(|cells| word_text(cells)).collect();
     let invalid: Vec<String> = texts
         .iter()
-        .filter(|w| !dictionary::is_word(w))
+        .filter(|w| !dict.is_word(w))
         .cloned()
         .collect();
     if !invalid.is_empty() {
@@ -226,11 +233,16 @@ pub fn validate_play(board: &Board, rack: &str, tiles: &[PlacedTile]) -> Result<
         })
         .collect();
     let total: i32 = words.iter().map(|w| w.score).sum::<i32>() + if bingo { scoring::BINGO_BONUS } else { 0 };
+    let out_word_cells: Vec<Vec<(usize, usize)>> = word_cells
+        .iter()
+        .map(|cells| cells.iter().map(|&(r, c, _, _)| (r, c)).collect())
+        .collect();
 
     Ok(PlayOutcome {
         new_board,
         remaining_rack,
         words,
+        word_cells: out_word_cells,
         total,
         bingo,
     })

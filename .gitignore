@@ -6,6 +6,9 @@ node_modules/
 dist/
 .vite/
 
+# Generated at build time (wasm-pack output + dictionary asset copy)
+frontend/src/generated/
+
 # Env files
 .env
 .env.local

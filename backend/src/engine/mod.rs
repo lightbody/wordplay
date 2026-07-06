@@ -1,13 +1,9 @@
-//! Pure game logic: board, tiles, move validation, scoring, dictionary,
-//! and end-game rules. No I/O, no async — everything here is unit-testable
-//! with plain values.
+//! Pure game logic, shared with the wasm frontend build via the
+//! `wordplay-engine-core` crate. `dictionary` and `endgame` stay here:
+//! `endgame` isn't shared logic, and `dictionary` needs a backend-specific
+//! `include_str!` wrapper (see `dictionary.rs`).
 
-pub mod board;
+pub use wordplay_engine_core::{board, moves, scoring, tiles};
+
 pub mod dictionary;
 pub mod endgame;
-pub mod moves;
-pub mod scoring;
-pub mod tiles;
-
-#[cfg(test)]
-mod play_tests;

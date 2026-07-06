@@ -1,12 +1,17 @@
 //! Play validation and scoring tests using ASCII-art board fixtures.
 
 use super::board::Board;
+use super::dictionary::Dictionary;
 use super::moves::{validate_play, PlacedTile, PlayError};
 
 /// Build a board from 15 rows of 15 chars ('.' = empty).
 fn board(rows: [&str; 15]) -> Board {
     let s: String = rows.concat();
     Board::from_str(&s).expect("valid fixture board")
+}
+
+fn test_dict() -> Dictionary {
+    Dictionary::from_bytes(include_str!("../assets/enable.txt").as_bytes()).unwrap()
 }
 
 fn empty() -> Board {
@@ -47,7 +52,7 @@ fn hello_board() -> Board {
 #[test]
 fn first_move_through_center_scores_double_word() {
     let tiles = [t(7, 5, 'H'), t(7, 6, 'E'), t(7, 7, 'L'), t(7, 8, 'L'), t(7, 9, 'O')];
-    let out = validate_play(&empty(), "HELLOXY", &tiles).unwrap();
+    let out = validate_play(&empty(), "HELLOXY", &tiles, &test_dict()).unwrap();
     assert_eq!(out.words.len(), 1);
     assert_eq!(out.words[0].word, "HELLO");
     assert_eq!(out.total, 16); // (4+1+1+1+1) x 2 for the center DW
@@ -59,7 +64,7 @@ fn first_move_through_center_scores_double_word() {
 fn first_move_must_cover_center() {
     let tiles = [t(0, 0, 'H'), t(0, 1, 'I')];
     assert_eq!(
-        validate_play(&empty(), "HI", &tiles).unwrap_err(),
+        validate_play(&empty(), "HI", &tiles, &test_dict()).unwrap_err(),
         PlayError::FirstMoveMustCoverCenter
     );
 }
@@ -68,7 +73,7 @@ fn first_move_must_cover_center() {
 fn first_move_needs_at_least_two_tiles() {
     let tiles = [t(7, 7, 'A')];
     assert_eq!(
-        validate_play(&empty(), "A", &tiles).unwrap_err(),
+        validate_play(&empty(), "A", &tiles, &test_dict()).unwrap_err(),
         PlayError::FirstMoveTooShort
     );
 }
@@ -78,20 +83,20 @@ fn first_move_needs_at_least_two_tiles() {
 #[test]
 fn tiles_must_share_a_line() {
     let tiles = [t(7, 7, 'H'), t(8, 8, 'I')];
-    assert_eq!(validate_play(&empty(), "HI", &tiles).unwrap_err(), PlayError::NotInLine);
+    assert_eq!(validate_play(&empty(), "HI", &tiles, &test_dict()).unwrap_err(), PlayError::NotInLine);
 }
 
 #[test]
 fn gaps_are_rejected() {
     let tiles = [t(7, 6, 'H'), t(7, 9, 'I')];
-    assert_eq!(validate_play(&empty(), "HI", &tiles).unwrap_err(), PlayError::Gap);
+    assert_eq!(validate_play(&empty(), "HI", &tiles, &test_dict()).unwrap_err(), PlayError::Gap);
 }
 
 #[test]
 fn existing_tiles_fill_gaps() {
     // T + A around the existing E of HELLO: TEA vertically at column 6.
     let tiles = [t(6, 6, 'T'), t(8, 6, 'A')];
-    let out = validate_play(&hello_board(), "TAZ", &tiles).unwrap();
+    let out = validate_play(&hello_board(), "TAZ", &tiles, &test_dict()).unwrap();
     assert_eq!(out.words.len(), 1);
     assert_eq!(out.words[0].word, "TEA");
     // (6,6) and (8,6) are both DL: (1x2) + 1 + (1x2) = 5
@@ -102,7 +107,7 @@ fn existing_tiles_fill_gaps() {
 fn occupied_squares_are_rejected() {
     let tiles = [t(7, 7, 'A'), t(7, 6, 'B')];
     assert_eq!(
-        validate_play(&hello_board(), "AB", &tiles).unwrap_err(),
+        validate_play(&hello_board(), "AB", &tiles, &test_dict()).unwrap_err(),
         PlayError::Occupied { row: 7, col: 7 }
     );
 }
@@ -111,7 +116,7 @@ fn occupied_squares_are_rejected() {
 fn duplicate_positions_are_rejected() {
     let tiles = [t(3, 3, 'A'), t(3, 3, 'B')];
     assert_eq!(
-        validate_play(&hello_board(), "AB", &tiles).unwrap_err(),
+        validate_play(&hello_board(), "AB", &tiles, &test_dict()).unwrap_err(),
         PlayError::Duplicate { row: 3, col: 3 }
     );
 }
@@ -119,14 +124,14 @@ fn duplicate_positions_are_rejected() {
 #[test]
 fn off_board_is_rejected() {
     let tiles = [t(7, 14, 'A'), t(7, 15, 'B')];
-    assert_eq!(validate_play(&hello_board(), "AB", &tiles).unwrap_err(), PlayError::OffBoard);
+    assert_eq!(validate_play(&hello_board(), "AB", &tiles, &test_dict()).unwrap_err(), PlayError::OffBoard);
 }
 
 #[test]
 fn moves_must_connect_to_existing_tiles() {
     let tiles = [t(0, 0, 'H'), t(0, 1, 'I')];
     assert_eq!(
-        validate_play(&hello_board(), "HI", &tiles).unwrap_err(),
+        validate_play(&hello_board(), "HI", &tiles, &test_dict()).unwrap_err(),
         PlayError::NotConnected
     );
 }
@@ -135,7 +140,7 @@ fn moves_must_connect_to_existing_tiles() {
 fn player_must_hold_the_tiles() {
     let tiles = [t(7, 10, 'S')];
     assert_eq!(
-        validate_play(&hello_board(), "ABC", &tiles).unwrap_err(),
+        validate_play(&hello_board(), "ABC", &tiles, &test_dict()).unwrap_err(),
         PlayError::NotInRack('S')
     );
 }
@@ -146,7 +151,7 @@ fn player_must_hold_the_tiles() {
 fn extending_a_word_rescores_it_without_old_premiums() {
     // HELLO -> HELLOS; the center DW under the existing L must not re-apply.
     let tiles = [t(7, 10, 'S')];
-    let out = validate_play(&hello_board(), "S", &tiles).unwrap();
+    let out = validate_play(&hello_board(), "S", &tiles, &test_dict()).unwrap();
     assert_eq!(out.words.len(), 1);
     assert_eq!(out.words[0].word, "HELLOS");
     assert_eq!(out.total, 9); // 4+1+1+1+1+1, no multipliers
@@ -155,7 +160,7 @@ fn extending_a_word_rescores_it_without_old_premiums() {
 #[test]
 fn invalid_words_are_all_reported() {
     let tiles = [t(7, 7, 'Z'), t(7, 8, 'Q')];
-    match validate_play(&empty(), "ZQ", &tiles).unwrap_err() {
+    match validate_play(&empty(), "ZQ", &tiles, &test_dict()).unwrap_err() {
         PlayError::InvalidWords(words) => assert_eq!(words, vec!["ZQ".to_string()]),
         other => panic!("expected InvalidWords, got {other:?}"),
     }
@@ -166,7 +171,7 @@ fn parallel_play_scores_main_and_cross_words() {
     // AS under HELLO's H/E: main AS, crosses HA and ES.
     // Board: HELLO at row 7 cols 5-9. Place A(8,5) S(8,6).
     let tiles = [t(8, 5, 'A'), t(8, 6, 'S')];
-    let out = validate_play(&hello_board(), "AS", &tiles).unwrap();
+    let out = validate_play(&hello_board(), "AS", &tiles, &test_dict()).unwrap();
     let words: Vec<(&str, i32)> = out.words.iter().map(|w| (w.word.as_str(), w.score)).collect();
     // Main word first, then crosses in placement order.
     // (8,6) is DL, so S doubles in both AS and ES.
@@ -196,7 +201,7 @@ fn single_tile_can_form_two_words() {
         "...............",
     ]);
     let tiles = [t(8, 5, 'S')];
-    let out = validate_play(&b, "S", &tiles).unwrap();
+    let out = validate_play(&b, "S", &tiles, &test_dict()).unwrap();
     let words: Vec<&str> = out.words.iter().map(|w| w.word.as_str()).collect();
     assert_eq!(words, vec!["AS", "ES"]);
     assert_eq!(out.total, 4);
@@ -225,7 +230,7 @@ fn triple_word_multiplies_the_whole_word() {
         "...............",
     ]);
     let tiles = [t(0, 0, 'B')];
-    let out = validate_play(&b, "B", &tiles).unwrap();
+    let out = validate_play(&b, "B", &tiles, &test_dict()).unwrap();
     assert_eq!(out.words[0].word, "BEAR");
     assert_eq!(out.total, 18); // (3+1+1+1) x 3
 }
@@ -252,7 +257,7 @@ fn covered_premiums_do_not_reapply() {
         "...............",
     ]);
     let tiles = [t(7, 6, 'Y'), t(7, 8, 'S')];
-    let out = validate_play(&b, "YS", &tiles).unwrap();
+    let out = validate_play(&b, "YS", &tiles, &test_dict()).unwrap();
     assert_eq!(out.words[0].word, "YES");
     assert_eq!(out.total, 6); // 4+1+1, center DW already covered
 }
@@ -265,7 +270,7 @@ fn seven_tile_play_earns_the_bingo_bonus() {
         .enumerate()
         .map(|(i, letter)| t(7, 4 + i as u8, letter))
         .collect();
-    let out = validate_play(&empty(), "AIRLINE", &tiles).unwrap();
+    let out = validate_play(&empty(), "AIRLINE", &tiles, &test_dict()).unwrap();
     assert!(out.bingo);
     assert_eq!(out.total, 64); // 7 x 2 (center DW) + 50
     assert_eq!(out.remaining_rack, "");
@@ -277,7 +282,7 @@ fn seven_tile_play_earns_the_bingo_bonus() {
 fn blank_scores_zero_but_completes_the_word() {
     // JO with a blank as the O.
     let tiles = [t(7, 7, 'J'), tb(7, 8, 'O')];
-    let out = validate_play(&empty(), "J?", &tiles).unwrap();
+    let out = validate_play(&empty(), "J?", &tiles, &test_dict()).unwrap();
     assert_eq!(out.words[0].word, "JO");
     assert_eq!(out.total, 16); // (8+0) x 2 for the center DW
     assert_eq!(out.remaining_rack, "");
@@ -288,7 +293,7 @@ fn blank_scores_zero_but_completes_the_word() {
 fn playing_a_blank_requires_holding_one() {
     let tiles = [t(7, 7, 'J'), tb(7, 8, 'O')];
     assert_eq!(
-        validate_play(&empty(), "JO", &tiles).unwrap_err(),
+        validate_play(&empty(), "JO", &tiles, &test_dict()).unwrap_err(),
         PlayError::NotInRack('?')
     );
 }

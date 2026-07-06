@@ -5,17 +5,28 @@ RUN apt-get update && apt-get install -y pkg-config libssl-dev && rm -rf /var/li
 
 WORKDIR /app
 
-# Cache dependency compilation
+# backend/ is a Cargo workspace root (engine-core/ and wasm-engine/ are
+# nested members). wasm-engine isn't a dependency of wordplay-backend --
+# it's a separate wasm build target consumed by the frontend (see
+# frontend/package.json's gen:wasm scripts) -- so only its Cargo.toml is
+# needed here, to let the workspace manifest resolve; its real source never
+# needs to enter this image.
 COPY Cargo.toml Cargo.lock ./
-RUN mkdir src && echo 'fn main(){}' > src/main.rs
-RUN cargo build --release
-RUN rm src/main.rs
+COPY engine-core/Cargo.toml engine-core/Cargo.toml
+COPY wasm-engine/Cargo.toml wasm-engine/Cargo.toml
+RUN mkdir -p src engine-core/src wasm-engine/src \
+    && echo 'fn main(){}' > src/main.rs \
+    && echo '' > engine-core/src/lib.rs \
+    && echo '' > wasm-engine/src/lib.rs
+RUN cargo build --release -p wordplay-backend
+RUN rm src/main.rs engine-core/src/lib.rs
 
-# Build the real binary (assets/enable.txt is include_str!'d into it)
+# Build the real binary (assets/enable.txt is include_str!'d in via engine-core/assets)
 COPY src ./src
-COPY assets ./assets
 COPY migrations ./migrations
-RUN touch src/main.rs && cargo build --release
+COPY engine-core/src engine-core/src
+COPY engine-core/assets engine-core/assets
+RUN touch src/main.rs engine-core/src/lib.rs && cargo build --release -p wordplay-backend
 
 # --- runtime stage ---
 FROM debian:bookworm-slim

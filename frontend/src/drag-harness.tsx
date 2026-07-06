@@ -12,10 +12,12 @@
 // reorder, drag a pending (not yet submitted) board tile back to the rack to
 // recall it or onto a different empty cell to reposition it. Tapping a
 // pending board tile still removes it, as a quick alternative to dragging.
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { N, isEmpty } from "./engine";
+import { N, isEmpty, checkPlacement } from "./engine";
 import { moveItem, rackColumnAt } from "./dragMath";
+import type { Cell } from "./boardOutline";
+import { checkPlacementWasm, loadEngine, toWireTile, useEngineStatus } from "./wasmEngine";
 import type { PendingTile } from "./types";
 import { Board } from "./components/Board";
 import { BoardViewport } from "./components/BoardViewport";
@@ -28,10 +30,58 @@ type DragSource = { kind: "rack"; rackIndex: number } | { kind: "board"; rackInd
 
 const EMPTY_BOARD = ".".repeat(N * N);
 
+// HELLO across row 7 cols 4-8, with an "A" below the H -- mirrors the Rust
+// `single_tile_can_form_two_words` fixture, so placing "S" at (8,5) forms
+// both AS (main, horizontal) and ES (cross, vertical) at once.
+const PREFILLED_BOARD = (() => {
+  const cells = EMPTY_BOARD.split("");
+  for (let i = 0; i < "HELLO".length; i++) cells[7 * N + 4 + i] = "HELLO"[i];
+  cells[8 * N + 4] = "A";
+  return cells.join("");
+})();
+
+type Scenario = "valid" | "invalid-word" | "structurally-invalid";
+
+/** rackIndex 0='S' 1='Z' 2='X' -- see the rack string below. */
+function scenarioTiles(scenario: Scenario): PendingTile[] {
+  switch (scenario) {
+    case "valid":
+      // Forms AS + ES, both real dictionary words -- expect a gold border.
+      return [{ row: 8, col: 5, rackIndex: 0, letter: "S", blank: false }];
+    case "invalid-word":
+      // Extends HELLO -> HELLOZ, structurally fine but not a real word --
+      // expect no border and Play to stay disabled once the dictionary
+      // check is ready.
+      return [{ row: 7, col: 9, rackIndex: 1, letter: "Z", blank: false }];
+    case "structurally-invalid":
+      // Disconnected from any existing tile -- fails the structural check
+      // before the dictionary is even consulted.
+      return [{ row: 0, col: 0, rackIndex: 2, letter: "X", blank: false }];
+  }
+}
+
+function dedupeCells(cells: Cell[]): Cell[] {
+  const seen = new Set<string>();
+  const result: Cell[] = [];
+  for (const c of cells) {
+    const key = `${c[0]},${c[1]}`;
+    if (!seen.has(key)) {
+      seen.add(key);
+      result.push(c);
+    }
+  }
+  return result;
+}
+
 function Harness() {
-  const rack = "HELLO?Z";
+  const rack = "SZXHE?O";
   const [order, setOrder] = useState<number[]>([0, 1, 2, 3, 4, 5, 6]);
   const [pending, setPending] = useState<PendingTile[]>([]);
+  const engineStatus = useEngineStatus();
+
+  useEffect(() => {
+    loadEngine();
+  }, []);
   const [dragActive, setDragActive] = useState<{
     rackIndex: number;
     letter: string;
@@ -52,6 +102,20 @@ function Harness() {
     dragActive?.origin.kind === "board"
       ? new Set([...usedIndices].filter((i) => i !== dragActive.rackIndex))
       : usedIndices;
+
+  const placement = checkPlacement(PREFILLED_BOARD, pending);
+  const wasmResult =
+    engineStatus === "ready" ? checkPlacementWasm(PREFILLED_BOARD, rack, pending.map(toWireTile)) : null;
+  const loadingBlock = engineStatus === "loading" && pending.length > 0;
+  const wordsValid = placement.valid && (engineStatus !== "ready" || (wasmResult?.valid ?? false));
+  const canPlay = pending.length > 0 && !loadingBlock && wordsValid;
+  const highlightCells: Cell[] = wasmResult?.valid
+    ? dedupeCells(wasmResult.words.flatMap((w) => w.cells))
+    : [];
+
+  function setScenario(scenario: Scenario) {
+    setPending(scenarioTiles(scenario));
+  }
 
   function placeLetterAt(rackIndex: number, row: number, col: number) {
     const letter = rack[rackIndex];
@@ -79,7 +143,7 @@ function Harness() {
       const col = Number(cellEl.dataset.boardCol);
       const draggedRackIndex = dragInfoRef.current?.rackIndex;
       const occupied =
-        !isEmpty(EMPTY_BOARD, row, col) ||
+        !isEmpty(PREFILLED_BOARD, row, col) ||
         pending.some((p) => p.row === row && p.col === col && p.rackIndex !== draggedRackIndex);
       return { type: "board", row, col, valid: !occupied };
     }
@@ -216,16 +280,25 @@ function Harness() {
         style={{ position: "fixed", top: 0, right: 0, fontSize: 10, background: "#fff", color: "#000", zIndex: 999 }}
       >
         order: {JSON.stringify(order)} | pending: {JSON.stringify(pending.map((p) => `${p.row},${p.col}=${p.letter}`))}
+        {" | "}engineStatus: {engineStatus} | placement.valid: {String(placement.valid)} | wasmResult:{" "}
+        {JSON.stringify(wasmResult)} | canPlay: {String(canPlay)}
+      </div>
+      <div style={{ position: "fixed", top: 40, right: 0, zIndex: 999, display: "flex", gap: 4 }}>
+        <button onClick={() => setScenario("valid")}>Valid word (AS/ES)</button>
+        <button onClick={() => setScenario("invalid-word")}>Invalid word (HELLOZ)</button>
+        <button onClick={() => setScenario("structurally-invalid")}>Structurally invalid</button>
+        <button onClick={() => setPending([])}>Clear</button>
       </div>
       <div className="game-middle">
         <BoardViewport>
           <Board
-            board={EMPTY_BOARD}
+            board={PREFILLED_BOARD}
             pending={pending}
             interactive
             onCellClick={removePendingTile}
             dropTarget={dropTarget?.type === "board" ? dropTarget : null}
             draggingFrom={dragActive?.origin.kind === "board" ? dragActive.origin : null}
+            highlightCells={highlightCells}
             onTileDragStart={startBoardTileDrag}
             onTileDragMove={moveTileDrag}
             onTileDragEnd={endTileDrag}
@@ -245,6 +318,15 @@ function Harness() {
             onDragEnd={endTileDrag}
             onDragCancel={cancelTileDrag}
           />
+        </div>
+        <div className="game-actions">
+          <button className="btn btn-primary" disabled={!canPlay} onClick={() => undefined}>
+            {loadingBlock
+              ? "Play (checking dictionary…)"
+              : wordsValid && pending.length > 0
+                ? `Play (${wasmResult?.score ?? placement.score})`
+                : "Play"}
+          </button>
         </div>
       </div>
       {dragActive && (

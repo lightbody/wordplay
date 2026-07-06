@@ -1,0 +1,17 @@
+[package]
+name = "wordplay-engine-core"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "wordplay_engine_core"
+path = "src/lib.rs"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+rand = "0.8"
+# rand's getrandom dependency has no default wasm32-unknown-unknown backend;
+# "js" makes it use the browser's crypto API instead. Needed so the
+# wasm-engine crate (which depends on this crate but never actually calls
+# the bag-shuffling code) can compile for wasm32 at all.
+getrandom = { version = "0.2", features = ["js"] }

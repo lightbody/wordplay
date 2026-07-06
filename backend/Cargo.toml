@@ -1,3 +1,16 @@
+[workspace]
+resolver = "2"
+members = ["engine-core", "wasm-engine"]
+
+# Keep the wasm build small; `lto` isn't overridable per-package, so this
+# relies on opt-level alone (a per-package profile setting must live at the
+# workspace root, not in the member crate's own Cargo.toml).
+[profile.release.package.wordplay-wasm]
+opt-level = "z"
+
+[profile.release.package.wordplay-engine-core]
+opt-level = "z"
+
 [package]
 name = "wordplay-backend"
 version = "0.1.0"
@@ -8,6 +21,7 @@ name = "wordplay-backend"
 path = "src/main.rs"
 
 [dependencies]
+wordplay-engine-core = { path = "engine-core" }
 axum = { version = "0.7", features = ["macros"] }
 tokio = { version = "1", features = ["full"] }
 sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "postgres", "uuid", "chrono", "migrate", "json"] }

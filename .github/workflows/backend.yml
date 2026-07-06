@@ -44,7 +44,12 @@ jobs:
           workspaces: backend
 
       - name: Run tests
-        run: cargo test
+        # --workspace: backend/ is the workspace root (engine-core/,
+        # wasm-engine/ are nested members), and `cargo test` run from a
+        # directory whose Cargo.toml has both [workspace] and [package]
+        # defaults to just that one package -- --workspace is required to
+        # also cover engine-core and wasm-engine.
+        run: cargo test --workspace
         working-directory: backend
 
   deploy:

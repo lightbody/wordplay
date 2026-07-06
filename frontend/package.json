@@ -4,14 +4,20 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
+    "gen:wasm": "wasm-pack build ../backend/wasm-engine --target web --release --out-dir ../../frontend/src/generated/wasm-engine $WASM_PACK_EXTRA_ARGS",
+    "gen:wasm-node": "wasm-pack build ../backend/wasm-engine --target nodejs --release --out-dir ../../frontend/src/generated/wasm-engine-node $WASM_PACK_EXTRA_ARGS",
+    "gen:dictionary": "mkdir -p src/generated && cp ../backend/engine-core/assets/enable.txt src/generated/dictionary.txt",
+    "predev": "npm run gen:wasm && npm run gen:dictionary",
+    "prebuild": "npm run gen:wasm && npm run gen:dictionary",
+    "pretest": "npm run gen:wasm-node && npm run gen:dictionary",
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
     "test": "vitest run"
   },
   "dependencies": {
-    "@workos-inc/authkit-react": "^0.16.1",
     "@electric-sql/react": "^1.0.50",
+    "@workos-inc/authkit-react": "^0.16.1",
     "motion": "^11.11.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
@@ -19,6 +25,7 @@
     "recharts": "^2.12.7"
   },
   "devDependencies": {
+    "@types/node": "^26.1.0",
     "@types/react": "^18.3.1",
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.1",

@@ -1,15 +1,17 @@
-//! Word list membership. The ENABLE list (public domain, ~173k words,
-//! lowercase) is compiled into the binary.
+//! The ENABLE list (public domain, ~173k words, lowercase) is compiled into
+//! the backend binary. The wasm build gets the same word list as a
+//! separately fetched, separately cached asset instead (see
+//! `wasm-engine/src/lib.rs`'s `init_dictionary`) -- so the two builds share
+//! the `Dictionary` type but not its data source.
 
-use std::collections::HashSet;
 use std::sync::LazyLock;
 
-static WORDS: LazyLock<HashSet<&'static str>> =
-    LazyLock::new(|| include_str!("../../assets/enable.txt").lines().collect());
+use wordplay_engine_core::dictionary::Dictionary;
 
-pub fn is_word(word: &str) -> bool {
-    WORDS.contains(word.to_ascii_lowercase().as_str())
-}
+pub static WORDS: LazyLock<Dictionary> = LazyLock::new(|| {
+    Dictionary::from_bytes(include_str!("../../engine-core/assets/enable.txt").as_bytes())
+        .expect("enable.txt is valid UTF-8")
+});
 
 #[cfg(test)]
 mod tests {
@@ -17,21 +19,16 @@ mod tests {
 
     #[test]
     fn knows_common_words_in_any_case() {
-        assert!(is_word("hello"));
-        assert!(is_word("HELLO"));
-        assert!(is_word("Jo"));
-        assert!(is_word("zyzzyvas"));
+        assert!(WORDS.is_word("hello"));
+        assert!(WORDS.is_word("HELLO"));
+        assert!(WORDS.is_word("Jo"));
+        assert!(WORDS.is_word("zyzzyvas"));
     }
 
     #[test]
     fn rejects_non_words() {
-        assert!(!is_word("qzx"));
-        assert!(!is_word(""));
-        assert!(!is_word("hello world"));
-    }
-
-    #[test]
-    fn list_is_fully_loaded() {
-        assert!(WORDS.len() > 170_000, "expected full ENABLE list, got {}", WORDS.len());
+        assert!(!WORDS.is_word("qzx"));
+        assert!(!WORDS.is_word(""));
+        assert!(!WORDS.is_word("hello world"));
     }
 }

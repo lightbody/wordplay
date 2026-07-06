@@ -5,6 +5,8 @@ on:
     branches: [main]
     paths:
       - frontend/**
+      - backend/engine-core/**
+      - backend/wasm-engine/**
       - .github/workflows/frontend.yml
   # No paths filter on PRs: every PR gets a full preview stack, so the
   # frontend must always be rebuilt against the PR's backend/Electric apps.
@@ -21,6 +23,20 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+
+      # `npm run build`'s prebuild hook runs wasm-pack against
+      # backend/wasm-engine (see frontend/package.json's gen:wasm script), so
+      # the Rust/wasm toolchain needs to be ready before it.
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: backend
+
+      - name: Install wasm-pack
+        run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
 
       - uses: actions/setup-node@v4
         with:
