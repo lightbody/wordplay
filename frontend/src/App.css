@@ -16,7 +16,6 @@
   --tw: #f5b8d8;
   --cell-bg: #eeedeb;
   --word-fill: #8dc546;
-  --last-move-fill: rgba(99, 102, 241, 0.4);
   --board-line: #ffffff;
   --radius: 12px;
   --shadow: 0 2px 8px rgba(30, 30, 60, 0.08);
@@ -38,7 +37,6 @@
     --tw: #6b3350;
     --cell-bg: #4a4a53;
     --word-fill: #1fa35a;
-    --last-move-fill: rgba(129, 140, 248, 0.45);
   }
 }
 
@@ -388,7 +386,7 @@ textarea {
   opacity: 0.65;
   pointer-events: none;
 }
-/* Fill layer for the pending-word / last-move highlights: a solid square
+/* Fill layer for the pending-word highlight: a solid square
  * that bleeds FILL_MARGIN px past its cell on all sides (see Board.tsx) to
  * frame the played word.
  *

@@ -9,8 +9,6 @@ interface BoardProps {
   pending: PendingTile[];
   /** Perimeter outline for the pending (not-yet-submitted) move, when valid. */
   wordEdges?: Map<string, EdgeSet>;
-  /** Perimeter outline for the most recently committed move. */
-  lastMoveEdges?: Map<string, EdgeSet>;
   onCellClick?: (row: number, col: number) => void;
   interactive?: boolean;
   /** Cell currently hovered while dragging a tile in from the rack or off the board. */
@@ -78,11 +76,26 @@ const TILE_BLEED_STYLE: React.CSSProperties = {
   left: -TILE_BLEED,
 };
 
+// Same bleed, but forced *below* the green move-fill (which is z-index 1;
+// tiles are z-index 2 by default). Used only for committed tiles that are
+// NOT part of the word(s) the current pending move forms -- e.g. the rest of
+// an existing word that the play merely butts up against. Dropping them under
+// the fill lets the green bleed paint over their abutting edge, so the
+// highlight reads as fully enclosing the played words: it draws a clean green
+// divider between the last played letter and the pre-existing tile next to it
+// (the C|A boundary), instead of stopping short because that neighbor tile
+// covered it. Play tiles (pending + the committed anchors that ARE in a formed
+// word, like the shared C) stay above the fill so their faces and letters show
+// through with the green only framing them. */
+const TILE_BLEED_STYLE_UNDER_FILL: React.CSSProperties = {
+  ...TILE_BLEED_STYLE,
+  zIndex: 0,
+};
+
 export function Board({
   board,
   pending,
   wordEdges,
-  lastMoveEdges,
   onCellClick,
   interactive,
   dropTarget,
@@ -184,7 +197,6 @@ export function Board({
       const prem = premium(row, col);
       const isCenter = row === 7 && col === 7;
       const wordEdge = wordEdges?.get(key);
-      const lastEdge = lastMoveEdges?.get(key);
       const isDropTarget = dropTarget?.row === row && dropTarget?.col === col;
 
       let content = null;
@@ -197,6 +209,12 @@ export function Board({
         // interior seam). See Tile's squareTL/squareBR doc.
         const squareTL = hasContent(row, col - 1) || hasContent(row - 1, col);
         const squareBR = hasContent(row, col + 1) || hasContent(row + 1, col);
+        // A committed tile that a valid pending move exists but which is NOT
+        // itself part of any word that move forms drops below the green fill,
+        // so the fill's bleed paints the enclosing divider over its edge (see
+        // TILE_BLEED_STYLE_UNDER_FILL). Play tiles -- every pending tile, and
+        // committed anchors that ARE in a formed word -- stay above the fill.
+        const underFill = !pend && !!wordEdges && !wordEdges.has(key);
         content = pend ? (
           <Tile
             letter={pend.letter}
@@ -216,20 +234,13 @@ export function Board({
             squareTL={squareTL}
             squareBR={squareBR}
             small
-            style={TILE_BLEED_STYLE}
+            style={underFill ? TILE_BLEED_STYLE_UNDER_FILL : TILE_BLEED_STYLE}
           />
         );
       }
 
-      // Only one highlight fill renders per cell: the in-progress pending
-      // word (green) takes priority over the previous move's marker (accent)
-      // -- in practice the two never actually land on the same cell, since
-      // pending tiles only ever occupy cells that were previously empty.
-      const fill = wordEdge
-        ? { style: fillStyle("var(--word-fill)") }
-        : lastEdge
-          ? { style: fillStyle("var(--last-move-fill)") }
-          : null;
+      // Green highlight fill behind the in-progress (valid) pending word.
+      const fill = wordEdge ? { style: fillStyle("var(--word-fill)") } : null;
 
       cells.push(
         <button

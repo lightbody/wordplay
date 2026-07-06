@@ -1,12 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { wordCellsForCommittedPlacement } from "@wordplay/shared";
 import { ApiError } from "../api";
 import { checkPlacementWithDictionary, isEmpty } from "../engine";
 import { useDictionary } from "../dictionary";
 import { moveItem, rackColumnAt } from "../dragMath";
 import { useApi, useProfile } from "../profile";
-import { useGamesShape, useMovesShape, useRacksShape } from "../shapes";
+import { useGamesShape, useRacksShape } from "../shapes";
 import type { Game, PendingTile, PlacedTileDto } from "../types";
 import { outlineEdges } from "../wordOutline";
 import { Board } from "../components/Board";
@@ -33,7 +32,6 @@ export function GameScreen() {
 
   const { data: games } = useGamesShape();
   const { data: racks } = useRacksShape();
-  const { data: moves } = useMovesShape(id!);
   const { dictionary } = useDictionary();
 
   const game = useMemo<Game | undefined>(
@@ -123,11 +121,6 @@ export function GameScreen() {
       : awaiting
         ? "sharing"
         : "playing";
-
-  const lastPlay = [...(moves ?? [])].reverse().find((m) => m.move_type === "play");
-  const lastMoveEdges = lastPlay?.tiles
-    ? outlineEdges(wordCellsForCommittedPlacement(game.board, lastPlay.tiles).flatMap((w) => w.cells))
-    : undefined;
 
   // While the dictionary hasn't loaded yet, treat placement as invalid
   // (Play stays disabled) rather than falling back to a dictionary-blind
@@ -426,7 +419,6 @@ export function GameScreen() {
             board={game.board}
             pending={pending}
             wordEdges={wordEdges}
-            lastMoveEdges={lastMoveEdges}
             interactive={myTurn && !finished}
             onCellClick={removePendingTile}
             dropTarget={dropTarget?.type === "board" ? dropTarget : null}
