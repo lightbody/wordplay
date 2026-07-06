@@ -70,7 +70,7 @@ jobs:
             ELECTRIC_URL="https://$ELECTRIC_APP.fly.dev" \
             PUBLIC_APP_URL="https://wordplay.lightbody.net" \
             ALLOWED_ORIGIN='*'
-          flyctl deploy --app "$BACKEND_APP" --config backend/fly.toml --remote-only
+          flyctl deploy --app "$BACKEND_APP" --config fly.backend.toml --remote-only
 
       - name: Update preview environment comment
         uses: actions/github-script@v7
