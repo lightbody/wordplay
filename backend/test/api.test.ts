@@ -46,6 +46,9 @@ function spawnElectricStub(): Promise<{ url: string; server: Server; lastQuery: 
       last = idx >= 0 ? req.url!.slice(idx + 1) : "";
       res.setHeader("electric-handle", "1");
       res.setHeader("content-type", "application/json");
+      // Real Electric marks historical shape chunks publicly cacheable;
+      // the proxy must override this since responses are per-user scoped.
+      res.setHeader("cache-control", "public, max-age=60, stale-while-revalidate=300");
       res.end("[]");
     });
     server.listen(0, "127.0.0.1", () => {
@@ -102,7 +105,7 @@ async function get(path: string, sub?: string) {
   const headers: Record<string, string> = {};
   if (sub) headers.authorization = `Bearer ${await token(privateKey, sub)}`;
   const res = await app.inject({ method: "GET", url: path, headers });
-  return { status: res.statusCode, body: res.body.length > 0 ? JSON.parse(res.body) : null };
+  return { status: res.statusCode, body: res.body.length > 0 ? JSON.parse(res.body) : null, headers: res.headers };
 }
 
 async function post(path: string, sub: string, body: unknown) {
@@ -263,6 +266,10 @@ describe("wordplay backend API", () => {
     // games view forwards a where-clause scoped to the caller.
     const r = await get("/shape?view=games", "member");
     expect(r.status).toBe(200);
+    // Electric's own cache-control (which marks historical chunks publicly
+    // cacheable) must never reach the client -- every response here is
+    // scoped to the caller and must not be shared/replayed by any cache.
+    expect(r.headers["cache-control"]).toBe("no-store");
     const q = electric.lastQuery();
     expect(q, "where clause must scope to the user").toBeDefined();
     expect(decodeURIComponent(q!)).toContain("member");

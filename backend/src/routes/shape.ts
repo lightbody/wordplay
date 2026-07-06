@@ -26,7 +26,15 @@ const FORWARD_PARAMS = ["offset", "handle", "live", "cursor"];
 // Hop-by-hop headers (per the Rust proxy) plus content-length/content-encoding:
 // Node's fetch transparently decodes the response body, so forwarding the
 // original content-encoding/content-length would describe bytes we're no
-// longer sending.
+// longer sending. cache-control is also stripped: Electric marks historical
+// (non-live) shape chunks as publicly cacheable so a CDN can serve them
+// directly, but every response from this proxy is scoped to the calling
+// user via an injected `where` filter -- nothing here varies by
+// Authorization, so letting a shared cache (or the browser's own HTTP
+// cache) store and replay it is both a correctness bug (the client can get
+// an instantly-replayed stale response instead of a real long-poll, which
+// Electric's client library detects as a stuck retry loop) and a
+// cross-user data exposure risk. Replaced with an explicit no-store below.
 const STRIPPED_HEADERS = new Set([
   "connection",
   "keep-alive",
@@ -38,6 +46,7 @@ const STRIPPED_HEADERS = new Set([
   "upgrade",
   "content-encoding",
   "content-length",
+  "cache-control",
 ]);
 
 export function registerShapeRoutes(app: FastifyInstance, ctx: AppContext): void {
@@ -94,6 +103,7 @@ export function registerShapeRoutes(app: FastifyInstance, ctx: AppContext): void
     upstream.headers.forEach((value, name) => {
       if (!STRIPPED_HEADERS.has(name.toLowerCase())) reply.header(name, value);
     });
+    reply.header("cache-control", "no-store");
 
     if (!upstream.body) {
       reply.send();
