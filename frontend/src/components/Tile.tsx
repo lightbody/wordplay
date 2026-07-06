@@ -11,7 +11,7 @@ interface TileProps {
   small?: boolean;
   /** Passed straight through to the underlying button -- used by Board to
    * bleed a board tile's edges over the grid gap toward any neighboring
-   * tile (see Board.tsx's tileBleedStyle). */
+   * tile (see Board.tsx's TILE_BLEED_STYLE). */
   style?: CSSProperties;
   /** True for a tile already locked in on the board (the lighter blue
    * shade); omitted for rack tiles and the not-yet-submitted tiles the

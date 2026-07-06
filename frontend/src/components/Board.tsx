@@ -39,7 +39,7 @@ const DRAG_THRESHOLD = 8;
 // sliver ever shows between two highlighted cells, independent of whether
 // the tiles' own bleed covers it) and outward past the shape's true outer
 // edge (reading as a margin/frame around the whole word).
-const FILL_MARGIN = 4;
+const FILL_MARGIN = 6;
 
 /** Style for the highlight fill layer of one cell: bleeds past every side by
  * FILL_MARGIN and stays fully square (no rounded corners at all, unlike the
@@ -56,27 +56,27 @@ function fillStyle(background: string): React.CSSProperties {
   };
 }
 
-// How far (px) a tile itself bleeds past its own cell toward a neighboring
-// tile, so the board's grid-line gap is fully covered and no letter tile
-// ever shows a seam next to another -- bigger than half the board's 2px
-// grid gap so the two neighbors' bleed fully overlaps rather than leaving a
-// sub-pixel sliver at some zoom levels.
-const TILE_BLEED = 2;
+// How far (px) every board tile bleeds past its own cell, on all four sides
+// *uniformly*. The board's grid gap is 2px, so two adjacent tiles each
+// bleeding 1.5px overlap by 1px past the gap's center -- guaranteeing a
+// continuous fill with no sliver at any zoom. Crucially the bleed is uniform
+// (not per-neighbor): if a tile only bled toward sides that *have* a
+// neighbor, a tile with a letter above it (e.g. a cross-word junction) would
+// grow taller/wider than its in-row siblings that don't, so their faces
+// would no longer line up -- the exact "this tile sits higher / sticks out
+// to the left" misalignment we're avoiding. Bleeding every side equally
+// keeps every tile face on the same grid lines; the only cost is that an
+// outer edge pokes ~1.5px into the gap toward an empty cell, which just
+// reads as the played word being one slightly-raised capsule.
+const TILE_BLEED = 1.5;
 
-/** Inset style for a tile that should bleed into any side with a neighboring
- * tile (pending or committed), so adjacent letters merge into one
- * continuous strip instead of leaving the grid's white gap visible between
- * them. Unlike the highlight fill above, this applies to every tile
- * regardless of word membership -- it's purely about hiding the grid. */
-function tileBleedStyle(hasTop: boolean, hasRight: boolean, hasBottom: boolean, hasLeft: boolean): React.CSSProperties {
-  return {
-    position: "absolute",
-    top: hasTop ? -TILE_BLEED : 0,
-    right: hasRight ? -TILE_BLEED : 0,
-    bottom: hasBottom ? -TILE_BLEED : 0,
-    left: hasLeft ? -TILE_BLEED : 0,
-  };
-}
+const TILE_BLEED_STYLE: React.CSSProperties = {
+  position: "absolute",
+  top: -TILE_BLEED,
+  right: -TILE_BLEED,
+  bottom: -TILE_BLEED,
+  left: -TILE_BLEED,
+};
 
 export function Board({
   board,
@@ -168,9 +168,8 @@ export function Board({
   }
 
   // Any cell holding a letter -- pending or already committed -- counts as
-  // "content" for the purpose of hiding the grid gap between neighboring
-  // tiles (tileBleedStyle below), regardless of which of the two a
-  // neighbor is.
+  // "content" for deciding a tile's square (interior) vs rounded (word-end)
+  // corners, regardless of which of the two a neighbor is.
   function hasContent(row: number, col: number) {
     if (row < 0 || row >= N || col < 0 || col >= N) return false;
     return cellAt(board, row, col) !== "." || pendingAt.has(`${row},${col}`);
@@ -198,12 +197,6 @@ export function Board({
         // interior seam). See Tile's squareTL/squareBR doc.
         const squareTL = hasContent(row, col - 1) || hasContent(row - 1, col);
         const squareBR = hasContent(row, col + 1) || hasContent(row + 1, col);
-        const bleed = tileBleedStyle(
-          hasContent(row - 1, col),
-          hasContent(row, col + 1),
-          hasContent(row + 1, col),
-          hasContent(row, col - 1),
-        );
         content = pend ? (
           <Tile
             letter={pend.letter}
@@ -213,7 +206,7 @@ export function Board({
             squareTL={squareTL}
             squareBR={squareBR}
             small
-            style={bleed}
+            style={TILE_BLEED_STYLE}
           />
         ) : (
           <Tile
@@ -223,7 +216,7 @@ export function Board({
             squareTL={squareTL}
             squareBR={squareBR}
             small
-            style={bleed}
+            style={TILE_BLEED_STYLE}
           />
         );
       }

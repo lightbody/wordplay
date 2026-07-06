@@ -362,6 +362,12 @@ textarea {
   position: relative;
   aspect-ratio: 1;
   min-width: 0;
+  /* No border: .cell is a <button>, and without this the native UA button
+   * border renders as a grey stroke around every slot. The white grid gap
+   * alone is the intended visual break between slots. */
+  border: none;
+  appearance: none;
+  -webkit-appearance: none;
   border-radius: 8px 0 8px 0;
   background: var(--cell-bg);
   display: grid;
@@ -425,14 +431,18 @@ textarea {
 }
 .tile-small {
   /* Board tiles are positioned via an inline inset (position/top/right/
-   * bottom/left set by Board's tileBleedStyle) so they can bleed past
+   * bottom/left set by Board's TILE_BLEED_STYLE) so they can bleed past
    * their own cell into the grid gap toward a neighboring tile -- a fixed
    * width/height/aspect-ratio here would win over that inset and silently
    * cancel the bleed, leaving the grid line visible between tiles. */
   width: auto;
   height: auto;
   aspect-ratio: unset;
-  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.2);
+  /* No drop shadow on board tiles: a shadow under each tile casts a dark
+   * seam onto the tile below/beside it, so a run of adjacent tiles reads as
+   * separated boxes rather than one continuous word. The green move-fill
+   * (and the tile color itself) provide all the emphasis needed. */
+  box-shadow: none;
   border-radius: 8px 0 8px 0;
 }
 .tile-square-tl {
@@ -459,7 +469,9 @@ textarea {
   opacity: 0.85;
 }
 .tile-pending {
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+  /* Intentionally no drop shadow -- see .tile-small. A shadow here would
+   * cast seams between the adjacent tiles of the word being placed; the
+   * green move-fill behind them is the emphasis instead. */
 }
 .tile-blank {
   box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.55);
