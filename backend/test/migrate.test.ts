@@ -63,7 +63,7 @@ describe("runMigrations", () => {
     expect(seen.some((s) => s.includes("CREATE TABLE foo"))).toBe(false);
   });
 
-  it("treats an 'already exists' error as already applied instead of crashing", async () => {
+  it("rethrows an 'already exists' error instead of treating it as already applied", async () => {
     await writeFile(path.join(dir, "001_initial.sql"), "CREATE TABLE users (id int);");
     const seen: string[] = [];
     const { pool } = fakePool({
@@ -78,9 +78,9 @@ describe("runMigrations", () => {
         return { rows: [] };
       },
     });
-    await expect(runMigrations(pool as never, dir)).resolves.toBeUndefined();
+    await expect(runMigrations(pool as never, dir)).rejects.toThrow("already exists");
     expect(seen.some((s) => s.includes("ROLLBACK"))).toBe(true);
-    expect(seen.some((s) => s.includes("ON CONFLICT DO NOTHING"))).toBe(true);
+    expect(seen.some((s) => s.includes("ON CONFLICT DO NOTHING"))).toBe(false);
   });
 
   it("rethrows errors that aren't an 'already exists' class", async () => {
