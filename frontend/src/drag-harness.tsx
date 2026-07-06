@@ -14,8 +14,11 @@
 // pending board tile still removes it, as a quick alternative to dragging.
 import { useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { N, isEmpty } from "./engine";
+import type { Dictionary } from "@wordplay/shared";
+import { wordCellsForCommittedPlacement } from "@wordplay/shared";
+import { N, checkPlacementWithDictionary, isEmpty } from "./engine";
 import { moveItem, rackColumnAt } from "./dragMath";
+import { outlineEdges } from "./wordOutline";
 import type { PendingTile } from "./types";
 import { Board } from "./components/Board";
 import { BoardViewport } from "./components/BoardViewport";
@@ -266,4 +269,102 @@ function Harness() {
   );
 }
 
-createRoot(document.getElementById("root")!).render(<Harness />);
+// Scenario for visually verifying the perimeter-outline UI (Phase C): a
+// small pre-existing board with an older committed word (connectivity anchor
+// for the pending move) and a separate committed "last move" word, plus a
+// pending L-shaped multi-word placement (a 3-letter main word with one
+// perpendicular cross word, sharing a corner cell -- see wordOutline.test.ts
+// for the same shape category). A mock Dictionary accepts every word the
+// scenario forms except one toggleable "bad" word, so the gold
+// valid/no-border-invalid states and the Play button's disabled state can
+// all be confirmed by flipping one button.
+const OUTLINE_BOARD = (() => {
+  const cells = ".".repeat(N * N).split("");
+  const place = (row: number, col: number, letter: string) => {
+    cells[row * N + col] = letter;
+  };
+  // Older committed word (not the last move): connectivity anchor for the
+  // pending placement below it.
+  place(7, 7, "C");
+  place(7, 8, "A");
+  place(7, 9, "R");
+  place(7, 10, "T");
+  // Separate committed word elsewhere, treated as the last-played move.
+  place(2, 2, "P");
+  place(3, 2, "E");
+  place(4, 2, "N");
+  return cells.join("");
+})();
+
+const LAST_MOVE_TILES = [
+  { row: 2, col: 2, letter: "P" },
+  { row: 3, col: 2, letter: "E" },
+  { row: 4, col: 2, letter: "N" },
+];
+
+// Forms main word "SIT" (row 8, cols 5-7, all new) plus one cross word "CT"
+// with the existing "C" at (7,7) -- an L-shape: a horizontal run with one
+// tile sticking up from its right end.
+const OUTLINE_PENDING: PendingTile[] = [
+  { row: 8, col: 5, rackIndex: 0, letter: "S", blank: false },
+  { row: 8, col: 6, rackIndex: 1, letter: "I", blank: false },
+  { row: 8, col: 7, rackIndex: 2, letter: "T", blank: false },
+];
+
+const BAD_WORD = "SIT";
+
+function makeMockDictionary(rejectWord: string | null): Dictionary {
+  return {
+    isWord(word: string) {
+      if (rejectWord && word.toUpperCase() === rejectWord.toUpperCase()) return false;
+      return true;
+    },
+    size: 2,
+  };
+}
+
+function OutlineHarness({ initialInvalid }: { initialInvalid: boolean }) {
+  const [invalid, setInvalid] = useState(initialInvalid);
+
+  const rack = OUTLINE_PENDING.map((t) => t.letter).join("");
+  const dictionary = makeMockDictionary(invalid ? BAD_WORD : null);
+  const placement = checkPlacementWithDictionary(OUTLINE_BOARD, rack, OUTLINE_PENDING, dictionary);
+  const wordEdges = placement.valid ? outlineEdges(placement.wordCells) : undefined;
+  const lastMoveEdges = outlineEdges(
+    wordCellsForCommittedPlacement(OUTLINE_BOARD, LAST_MOVE_TILES).flatMap((w) => w.cells),
+  );
+
+  return (
+    <div className="app-page game-screen" id="harness-root">
+      <div
+        id="debug-log"
+        style={{ position: "fixed", top: 0, right: 0, fontSize: 10, background: "#fff", color: "#000", zIndex: 999 }}
+      >
+        dict: {invalid ? "invalid (SIT rejected)" : "valid"} | placement.valid: {String(placement.valid)}
+      </div>
+      <div className="game-middle">
+        <BoardViewport>
+          <Board board={OUTLINE_BOARD} pending={OUTLINE_PENDING} wordEdges={wordEdges} lastMoveEdges={lastMoveEdges} />
+        </BoardViewport>
+      </div>
+      <div className="bottom-bar">
+        <div className="game-actions">
+          <button className="btn" id="toggle-dict" onClick={() => setInvalid((v) => !v)}>
+            {invalid ? "Make valid" : "Make invalid"}
+          </button>
+          <button className="btn btn-primary" id="play-button" disabled={!placement.valid}>
+            Play {placement.valid ? `(${placement.score})` : ""}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const params = new URLSearchParams(window.location.search);
+const scenario = params.get("scenario");
+const initialInvalid = params.get("dict") === "invalid";
+
+createRoot(document.getElementById("root")!).render(
+  scenario === "outline" ? <OutlineHarness initialInvalid={initialInvalid} /> : <Harness />,
+);

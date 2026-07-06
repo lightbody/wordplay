@@ -13,7 +13,9 @@ import {
   isEmpty,
   letterValue,
   premium,
+  validatePlay,
   wordText,
+  type Dictionary,
   type PlacedTile,
   type Premium,
 } from "@wordplay/shared";
@@ -109,4 +111,49 @@ function scoreExtractedWord(word: { cells: Array<{ row: number; col: number; cel
 /** Read a word's letters off a board region (for the move log / display). */
 export function wordAt(board: string, cells: Array<[number, number]>): string {
   return wordText(board, cells);
+}
+
+export interface PlacementResult {
+  valid: boolean;
+  reason?: string;
+  score: number;
+  bingo: boolean;
+  /** Union of every word's cells (main word + all cross words), deduplicated. */
+  wordCells: Array<{ row: number; col: number }>;
+}
+
+/**
+ * The dictionary-aware placement check: structural rules plus a dictionary
+ * lookup for every word formed, via shared's validatePlay. This is the sole
+ * placement-checking entry point for GameScreen -- checkPlacement above only
+ * remains for the (dictionary-blind) unit tests/harness scenarios that don't
+ * need it.
+ */
+export function checkPlacementWithDictionary(
+  board: string,
+  rack: string,
+  pending: PendingTile[],
+  dictionary: Dictionary,
+): PlacementResult {
+  if (pending.length === 0) return { valid: false, score: 0, bingo: false, wordCells: [] };
+
+  const tiles: PlacedTile[] = pending.map((t) => ({ row: t.row, col: t.col, letter: t.letter, blank: t.blank }));
+  const outcome = validatePlay(board, rack, tiles, dictionary);
+  if ("code" in outcome) {
+    const reason = outcome.code === "invalid_words" ? "Not a valid word" : STRUCTURAL_REASONS[outcome.code];
+    return { valid: false, reason: reason ?? "Invalid move", score: 0, bingo: false, wordCells: [] };
+  }
+
+  const seen = new Set<string>();
+  const wordCells: Array<{ row: number; col: number }> = [];
+  for (const word of outcome.wordCells) {
+    for (const { row, col } of word.cells) {
+      const key = `${row},${col}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      wordCells.push({ row, col });
+    }
+  }
+
+  return { valid: true, score: outcome.total, bingo: outcome.bingo, wordCells };
 }

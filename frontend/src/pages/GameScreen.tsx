@@ -1,11 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { wordCellsForCommittedPlacement } from "@wordplay/shared";
 import { ApiError } from "../api";
-import { checkPlacement, isEmpty } from "../engine";
+import { checkPlacementWithDictionary, isEmpty } from "../engine";
+import { useDictionary } from "../dictionary";
 import { moveItem, rackColumnAt } from "../dragMath";
 import { useApi, useProfile } from "../profile";
 import { useGamesShape, useMovesShape, useRacksShape } from "../shapes";
 import type { Game, PendingTile, PlacedTileDto } from "../types";
+import { outlineEdges } from "../wordOutline";
 import { Board } from "../components/Board";
 import { BoardViewport } from "../components/BoardViewport";
 import { Rack } from "../components/Rack";
@@ -31,6 +34,7 @@ export function GameScreen() {
   const { data: games } = useGamesShape();
   const { data: racks } = useRacksShape();
   const { data: moves } = useMovesShape(id!);
+  const { dictionary } = useDictionary();
 
   const game = useMemo<Game | undefined>(
     () => games?.find((g) => g.id === id),
@@ -120,11 +124,19 @@ export function GameScreen() {
         ? "sharing"
         : "playing";
 
-  const lastMove = new Set<string>();
   const lastPlay = [...(moves ?? [])].reverse().find((m) => m.move_type === "play");
-  if (lastPlay?.tiles) for (const t of lastPlay.tiles) lastMove.add(`${t.row},${t.col}`);
+  const lastMoveEdges = lastPlay?.tiles
+    ? outlineEdges(wordCellsForCommittedPlacement(game.board, lastPlay.tiles).flatMap((w) => w.cells))
+    : undefined;
 
-  const placement = checkPlacement(game.board, pending);
+  // While the dictionary hasn't loaded yet, treat placement as invalid
+  // (Play stays disabled) rather than falling back to a dictionary-blind
+  // check -- a one-time cost, since the dictionary is cached aggressively
+  // afterward (see dictionary.ts).
+  const placement = dictionary
+    ? checkPlacementWithDictionary(game.board, myRack, pending, dictionary)
+    : { valid: false, score: 0, bingo: false, wordCells: [] };
+  const wordEdges = placement.valid ? outlineEdges(placement.wordCells) : undefined;
   const canPlay = myTurn && !finished && pending.length > 0 && placement.valid && !busy;
 
   function placeLetterAt(rackIndex: number, row: number, col: number) {
@@ -413,7 +425,8 @@ export function GameScreen() {
           <Board
             board={game.board}
             pending={pending}
-            lastMove={lastMove}
+            wordEdges={wordEdges}
+            lastMoveEdges={lastMoveEdges}
             interactive={myTurn && !finished}
             onCellClick={removePendingTile}
             dropTarget={dropTarget?.type === "board" ? dropTarget : null}
@@ -571,10 +584,11 @@ function RackArea({
 
 function describeError(e: unknown): string {
   if (e instanceof ApiError) {
-    if (e.code === "invalid_words") {
-      const words = (e.detail.words as string[] | undefined) ?? [];
-      return `Not in dictionary: ${words.join(", ")}`;
-    }
+    // "invalid_words" is intentionally absent here: the client now refuses
+    // to submit a dictionary-invalid move (see checkPlacementWithDictionary),
+    // so this code should be unreachable in normal play. Kept as a safety
+    // net for a stale client or race condition, falling through to the
+    // generic message below.
     const map: Record<string, string> = {
       not_your_turn: "It's not your turn.",
       first_move_must_cover_center: "Opening move must cover the center star.",
