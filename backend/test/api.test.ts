@@ -49,7 +49,9 @@ function spawnElectricStub(): Promise<{ url: string; server: Server; lastQuery: 
       // Real Electric marks historical shape chunks publicly cacheable;
       // the proxy must override this since responses are per-user scoped.
       res.setHeader("cache-control", "public, max-age=60, stale-while-revalidate=300");
-      res.end("[]");
+      // A non-trivial body, not "[]" -- catches the proxy silently dropping
+      // a streamed response body (see the cache-control assertion below).
+      res.end('[{"headers":{"operation":"insert"},"value":{"marker":"stub-payload"}}]');
     });
     server.listen(0, "127.0.0.1", () => {
       const addr = server.address() as AddressInfo;
@@ -270,6 +272,11 @@ describe("wordplay backend API", () => {
     // cacheable) must never reach the client -- every response here is
     // scoped to the caller and must not be shared/replayed by any cache.
     expect(r.headers["cache-control"]).toBe("no-store");
+    // The streamed body must actually be forwarded, not silently dropped
+    // (a real regression: an async handler calling reply.send() on a piped
+    // stream without `return`ing it raced Fastify's own completion and
+    // produced a 200 with an empty body).
+    expect(r.body).toEqual([{ headers: { operation: "insert" }, value: { marker: "stub-payload" } }]);
     const q = electric.lastQuery();
     expect(q, "where clause must scope to the user").toBeDefined();
     expect(decodeURIComponent(q!)).toContain("member");

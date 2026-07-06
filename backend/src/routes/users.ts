@@ -18,7 +18,7 @@ export function registerUserRoutes(app: FastifyInstance, ctx: AppContext): void 
       [userId],
     );
     if (rows.length === 0) throw AppError.notFound();
-    reply.send(rows[0]);
+    return reply.send(rows[0]);
   });
 
   app.post("/me", async (req, reply) => {
@@ -33,7 +33,7 @@ export function registerUserRoutes(app: FastifyInstance, ctx: AppContext): void 
          RETURNING id, username, default_deduct_unused, created_at`,
         [userId, username],
       );
-      reply.status(201).send(rows[0]);
+      return reply.status(201).send(rows[0]);
     } catch (e) {
       const err = e as { code?: string; constraint?: string };
       if (err.code === "23505") {
@@ -50,10 +50,9 @@ export function registerUserRoutes(app: FastifyInstance, ctx: AppContext): void 
     await authenticate(ctx, req);
     const { username } = req.params as { username: string };
     if (!validUsername(username)) {
-      reply.send({ available: false, reason: "invalid" });
-      return;
+      return reply.send({ available: false, reason: "invalid" });
     }
     const { rows } = await ctx.pool.query("SELECT 1 FROM users WHERE lower(username) = lower($1)", [username]);
-    reply.send({ available: rows.length === 0 });
+    return reply.send({ available: rows.length === 0 });
   });
 }

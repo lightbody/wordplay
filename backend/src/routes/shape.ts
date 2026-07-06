@@ -106,9 +106,17 @@ export function registerShapeRoutes(app: FastifyInstance, ctx: AppContext): void
     reply.header("cache-control", "no-store");
 
     if (!upstream.body) {
-      reply.send();
-      return;
+      return reply.send();
     }
-    reply.send(Readable.fromWeb(upstream.body as import("node:stream/web").ReadableStream));
+    // Must `return` reply.send() here, not call it bare: in an async
+    // handler, Fastify races the handler's own promise resolution against
+    // the stream finishing. With a bare call the handler resolves (with
+    // undefined) before the piped stream has written any chunks, and
+    // Fastify finalizes the response as empty -- reproduced in isolation
+    // (a 90-byte upstream body came back as 0 bytes without `return`, and
+    // correctly in full with it). JSON-payload routes elsewhere don't hit
+    // this because their sends complete synchronously within the handler;
+    // this is the only route in the app that streams a piped body.
+    return reply.send(Readable.fromWeb(upstream.body as import("node:stream/web").ReadableStream));
   });
 }

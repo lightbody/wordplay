@@ -238,6 +238,6 @@ export function registerMoveRoutes(app: FastifyInstance, ctx: AppContext): void 
       return { body: { game: updated, move: mv, rack, game_over: gameOver } };
     });
 
-    reply.status(201).send(result.body);
+    return reply.status(201).send(result.body);
   });
 }

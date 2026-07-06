@@ -7,7 +7,7 @@ import type { AppContext } from "../context.js";
 export function registerDictionaryRoutes(app: FastifyInstance, ctx: AppContext): void {
   app.get("/dictionary/version", async (_req, reply) => {
     reply.header("Cache-Control", "no-store");
-    reply.send({
+    return reply.send({
       hash: ctx.dictionaryHash,
       size: ctx.dictionarySize,
       wordCount: ctx.dictionaryWordCount,
@@ -17,10 +17,9 @@ export function registerDictionaryRoutes(app: FastifyInstance, ctx: AppContext):
   app.get("/dictionary/:hash(^[0-9a-f]+).txt", async (req, reply) => {
     const { hash } = req.params as { hash: string };
     if (hash !== ctx.dictionaryHash) {
-      reply.status(404).send();
-      return;
+      return reply.status(404).send();
     }
     reply.header("Cache-Control", "public, max-age=31536000, immutable");
-    reply.type("text/plain").send(ctx.dictionaryText);
+    return reply.type("text/plain").send(ctx.dictionaryText);
   });
 }

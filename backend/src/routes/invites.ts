@@ -29,7 +29,7 @@ export function registerInviteRoutes(app: FastifyInstance, ctx: AppContext): voi
     ]);
 
     const url = `${ctx.publicAppUrl}/invite/${token}`;
-    reply.status(201).send({ token, url });
+    return reply.status(201).send({ token, url });
   });
 
   /** Public (unauthenticated) minimal preview for OpenGraph unfurling. */
@@ -54,7 +54,7 @@ export function registerInviteRoutes(app: FastifyInstance, ctx: AppContext): voi
     );
     const firstWord = wordRes.rows[0]?.word ?? null;
 
-    reply.send({ inviter_username: inviterUsername, first_word: firstWord });
+    return reply.send({ inviter_username: inviterUsername, first_word: firstWord });
   });
 
   app.post("/invites/:token/accept", async (req, reply) => {
@@ -95,6 +95,6 @@ export function registerInviteRoutes(app: FastifyInstance, ctx: AppContext): voi
       return { game_id: gameId };
     });
 
-    reply.send(result);
+    return reply.send(result);
   });
 }

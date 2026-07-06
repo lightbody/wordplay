@@ -91,7 +91,7 @@ export function registerGameRoutes(app: FastifyInstance, ctx: AppContext): void 
       return { game, rack };
     });
 
-    reply.status(201).send(result);
+    return reply.status(201).send(result);
   });
 
   app.get("/games/:id", async (req, reply) => {
@@ -115,7 +115,7 @@ export function registerGameRoutes(app: FastifyInstance, ctx: AppContext): void 
       [id],
     );
 
-    reply.send({ game, rack, moves: movesRes.rows });
+    return reply.send({ game, rack, moves: movesRes.rows });
   });
 
   app.post("/games/:id/challenge", async (req, reply) => {
@@ -143,6 +143,6 @@ export function registerGameRoutes(app: FastifyInstance, ctx: AppContext): void 
       return attachOpponent(client, game, opponent.id, opponent.username);
     });
 
-    reply.send(game);
+    return reply.send(game);
   });
 }
