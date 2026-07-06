@@ -15,7 +15,6 @@
 import { useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import type { Dictionary } from "@wordplay/shared";
-import { wordCellsForCommittedPlacement } from "@wordplay/shared";
 import { N, checkPlacementWithDictionary, isEmpty } from "./engine";
 import { moveItem, rackColumnAt } from "./dragMath";
 import { outlineEdges } from "./wordOutline";
@@ -269,38 +268,31 @@ function Harness() {
   );
 }
 
-// Scenario for visually verifying the perimeter-outline UI (Phase C): a
-// small pre-existing board with an older committed word (connectivity anchor
-// for the pending move) and a separate committed "last move" word, plus a
-// pending L-shaped multi-word placement (a 3-letter main word with one
-// perpendicular cross word, sharing a corner cell -- see wordOutline.test.ts
-// for the same shape category). A mock Dictionary accepts every word the
-// scenario forms except one toggleable "bad" word, so the gold
-// valid/no-border-invalid states and the Play button's disabled state can
-// all be confirmed by flipping one button.
+// Scenario for visually verifying the move-highlight UI: a small pre-existing
+// board with a committed word (connectivity anchor for the pending move) and
+// a separate committed word elsewhere, plus a pending L-shaped multi-word
+// placement (a 3-letter main word with one perpendicular cross word, sharing
+// a corner cell -- see wordOutline.test.ts for the same shape category). A
+// mock Dictionary accepts every word the scenario forms except one toggleable
+// "bad" word, so the green valid / no-highlight invalid states and the Play
+// button's disabled state can all be confirmed by flipping one button.
 const OUTLINE_BOARD = (() => {
   const cells = ".".repeat(N * N).split("");
   const place = (row: number, col: number, letter: string) => {
     cells[row * N + col] = letter;
   };
-  // Older committed word (not the last move): connectivity anchor for the
-  // pending placement below it.
+  // Committed word: connectivity anchor for the pending placement below it.
   place(7, 7, "C");
   place(7, 8, "A");
   place(7, 9, "R");
   place(7, 10, "T");
-  // Separate committed word elsewhere, treated as the last-played move.
+  // A separate committed word elsewhere (a plain vertical committed run, to
+  // eyeball committed-tile rendering).
   place(2, 2, "P");
   place(3, 2, "E");
   place(4, 2, "N");
   return cells.join("");
 })();
-
-const LAST_MOVE_TILES = [
-  { row: 2, col: 2, letter: "P" },
-  { row: 3, col: 2, letter: "E" },
-  { row: 4, col: 2, letter: "N" },
-];
 
 // Forms main word "SIT" (row 8, cols 5-7, all new) plus one cross word "CT"
 // with the existing "C" at (7,7) -- an L-shape: a horizontal run with one
@@ -330,9 +322,6 @@ function OutlineHarness({ initialInvalid }: { initialInvalid: boolean }) {
   const dictionary = makeMockDictionary(invalid ? BAD_WORD : null);
   const placement = checkPlacementWithDictionary(OUTLINE_BOARD, rack, OUTLINE_PENDING, dictionary);
   const wordEdges = placement.valid ? outlineEdges(placement.wordCells) : undefined;
-  const lastMoveEdges = outlineEdges(
-    wordCellsForCommittedPlacement(OUTLINE_BOARD, LAST_MOVE_TILES).flatMap((w) => w.cells),
-  );
 
   return (
     <div className="app-page game-screen" id="harness-root">
@@ -344,7 +333,7 @@ function OutlineHarness({ initialInvalid }: { initialInvalid: boolean }) {
       </div>
       <div className="game-middle">
         <BoardViewport>
-          <Board board={OUTLINE_BOARD} pending={OUTLINE_PENDING} wordEdges={wordEdges} lastMoveEdges={lastMoveEdges} />
+          <Board board={OUTLINE_BOARD} pending={OUTLINE_PENDING} wordEdges={wordEdges} />
         </BoardViewport>
       </div>
       <div className="bottom-bar">

@@ -7,15 +7,15 @@
   --accent: #6366f1;
   --accent-2: #ec4899;
   --danger: #ef4444;
-  --tile: #fcefc7;
-  --tile-border: #e0b64d;
-  --tile-text: #3a2f10;
-  --dl: #f5e29b;
-  --tl: #a8dfb8;
-  --dw: #b8d4f5;
+  --tile-rack: #2a5391;
+  --tile-board: #4076c5;
+  --tile-text: #ffffff;
+  --dl: #f0e9cc;
+  --tl: #dde7d0;
+  --dw: #d8dfee;
   --tw: #f5b8d8;
-  --cell-bg: #d8d8dc;
-  --word-outline: #b8860b;
+  --cell-bg: #eeedeb;
+  --word-fill: #8dc546;
   --board-line: #ffffff;
   --radius: 12px;
   --shadow: 0 2px 8px rgba(30, 30, 60, 0.08);
@@ -29,13 +29,14 @@
     --text: #e8e9f3;
     --muted: #9aa0c0;
     --border: #2d3048;
-    --tile: #f5e6b8;
+    --tile-rack: #26339e;
+    --tile-board: #4a68c4;
     --dl: #6b5f2e;
     --tl: #2f5c40;
     --dw: #2c4a6e;
     --tw: #6b3350;
     --cell-bg: #4a4a53;
-    --word-outline: #d4a017;
+    --word-fill: #1fa35a;
   }
 }
 
@@ -393,7 +394,12 @@ textarea {
   position: relative;
   aspect-ratio: 1;
   min-width: 0;
-  border: 3px solid transparent;
+  /* No border: .cell is a <button>, and without this the native UA button
+   * border renders as a grey stroke around every slot. The white grid gap
+   * alone is the intended visual break between slots. */
+  border: none;
+  appearance: none;
+  -webkit-appearance: none;
   border-radius: 8px 0 8px 0;
   background: var(--cell-bg);
   display: grid;
@@ -414,14 +420,24 @@ textarea {
   opacity: 0.65;
   pointer-events: none;
 }
-.cell.word-edge-top { border-top-color: var(--word-outline); }
-.cell.word-edge-right { border-right-color: var(--word-outline); }
-.cell.word-edge-bottom { border-bottom-color: var(--word-outline); }
-.cell.word-edge-left { border-left-color: var(--word-outline); }
-.cell.last-edge-top { border-top-color: var(--accent); }
-.cell.last-edge-right { border-right-color: var(--accent); }
-.cell.last-edge-bottom { border-bottom-color: var(--accent); }
-.cell.last-edge-left { border-left-color: var(--accent); }
+/* Fill layer for the pending-word highlight: a solid square
+ * that bleeds FILL_MARGIN px past its cell on all sides (see Board.tsx) to
+ * frame the played word.
+ *
+ * z-index must be POSITIVE (not 0): .cell is position:relative with
+ * z-index:auto, so it creates no stacking context, which means every fill
+ * and every cell background paint together at "stacking level 0" in DOM
+ * order. At z-index:0 a fill would be covered by any later-DOM neighbor
+ * cell's background -- so the frame showed on the top/left edges (bleeding
+ * over earlier cells) but was hidden on the right/bottom (painted over by
+ * later cells). A positive z-index lifts every fill above all cell
+ * backgrounds regardless of DOM order, so the frame is even on all sides.
+ * Tiles sit one level higher still (.tile z-index) so letters stay on top
+ * of the fill and a fill never covers an adjacent tile. */
+.cell-fill {
+  position: absolute;
+  z-index: 1;
+}
 .cell-drop-valid {
   box-shadow: inset 0 0 0 2px #16a34a;
 }
@@ -433,26 +449,51 @@ textarea {
 .tile {
   container-type: inline-size;
   position: relative;
+  /* One level above .cell-fill (z-index:1) so letters always sit on top of
+   * the highlight and, across cells, a fill never paints over an adjacent
+   * tile -- only over empty/premium cell backgrounds and the grid gap. */
+  z-index: 2;
   width: 100%;
   height: 100%;
   aspect-ratio: 1;
-  border: 1px solid var(--tile-border);
-  background: linear-gradient(180deg, #fdf3d0, var(--tile));
-  border-radius: 5px;
+  border: none;
+  background: var(--tile-rack);
+  border-radius: 10px 0 10px 0;
   color: var(--tile-text);
   display: grid;
   place-items: center;
   cursor: pointer;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
   padding: 0;
   touch-action: none;
 }
 .tile:disabled {
   cursor: default;
 }
+.tile-board {
+  background: var(--tile-board);
+}
 .tile-small {
-  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.18);
-  border-radius: 3px;
+  /* Board tiles are positioned via an inline inset (position/top/right/
+   * bottom/left set by Board's TILE_BLEED_STYLE) so they can bleed past
+   * their own cell into the grid gap toward a neighboring tile -- a fixed
+   * width/height/aspect-ratio here would win over that inset and silently
+   * cancel the bleed, leaving the grid line visible between tiles. */
+  width: auto;
+  height: auto;
+  aspect-ratio: unset;
+  /* No drop shadow on board tiles: a shadow under each tile casts a dark
+   * seam onto the tile below/beside it, so a run of adjacent tiles reads as
+   * separated boxes rather than one continuous word. The green move-fill
+   * (and the tile color itself) provide all the emphasis needed. */
+  box-shadow: none;
+  border-radius: 8px 0 8px 0;
+}
+.tile-square-tl {
+  border-top-left-radius: 0;
+}
+.tile-square-br {
+  border-bottom-right-radius: 0;
 }
 .tile-letter {
   font-weight: 700;
@@ -469,13 +510,15 @@ textarea {
   bottom: 1px;
   font-size: clamp(6px, 24cqw, 15px);
   font-weight: 600;
-  opacity: 0.75;
+  opacity: 0.85;
 }
 .tile-pending {
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+  /* Intentionally no drop shadow -- see .tile-small. A shadow here would
+   * cast seams between the adjacent tiles of the word being placed; the
+   * green move-fill behind them is the emphasis instead. */
 }
 .tile-blank {
-  background: linear-gradient(180deg, #fff, #f0f0f5);
+  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.55);
 }
 .tile-selected {
   box-shadow: 0 0 0 3px var(--accent);
