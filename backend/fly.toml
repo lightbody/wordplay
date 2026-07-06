@@ -2,7 +2,7 @@ app = "plightbo-wordplay-backend"
 primary_region = "iad"
 
 [build]
-  dockerfile = "Dockerfile"
+  dockerfile = "backend/Dockerfile"
 
 [env]
   PORT = "8080"

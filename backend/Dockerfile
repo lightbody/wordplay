@@ -1,33 +1,24 @@
-# --- build stage ---
-FROM rust:slim-bookworm AS builder
-
-RUN apt-get update && apt-get install -y pkg-config libssl-dev && rm -rf /var/lib/apt/lists/*
-
+# Build context is the repo root (see backend/fly.toml and
+# .github/workflows/backend.yml), since this needs shared/ and the root
+# lockfile alongside backend/.
+FROM node:20-slim AS builder
 WORKDIR /app
+COPY package.json package-lock.json ./
+COPY shared/package.json shared/
+COPY frontend/package.json frontend/
+COPY backend/package.json backend/
+RUN npm ci
+COPY shared ./shared
+COPY backend ./backend
+RUN npm run build --workspace=shared && npm run build --workspace=backend
 
-# Cache dependency compilation
-COPY Cargo.toml Cargo.lock ./
-RUN mkdir src && echo 'fn main(){}' > src/main.rs
-RUN cargo build --release
-RUN rm src/main.rs
-
-# Build the real binary (assets/enable.txt is include_str!'d into it)
-COPY src ./src
-COPY assets ./assets
-COPY migrations ./migrations
-RUN touch src/main.rs && cargo build --release
-
-# --- runtime stage ---
-FROM debian:bookworm-slim
-
-RUN apt-get update && apt-get install -y ca-certificates libssl3 && rm -rf /var/lib/apt/lists/*
-
+FROM node:20-slim AS runtime
 WORKDIR /app
-
-COPY --from=builder /app/target/release/wordplay-backend ./wordplay-backend
-COPY --from=builder /app/migrations ./migrations
-
-ENV PORT=8080
+ENV NODE_ENV=production PORT=8080
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/shared ./shared
+COPY --from=builder /app/backend/dist ./backend/dist
+COPY --from=builder /app/backend/migrations ./backend/migrations
+COPY --from=builder /app/backend/package.json ./backend/package.json
 EXPOSE 8080
-
-CMD ["./wordplay-backend"]
+CMD ["node", "backend/dist/main.js"]

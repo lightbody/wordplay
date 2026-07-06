@@ -5,10 +5,12 @@ on:
     branches: [main]
     paths:
       - backend/**
+      - shared/**
       - .github/workflows/backend.yml
   pull_request:
     paths:
       - backend/**
+      - shared/**
       - .github/workflows/backend.yml
 
 jobs:
@@ -37,15 +39,26 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: dtolnay/rust-toolchain@stable
-
-      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-node@v4
         with:
-          workspaces: backend
+          node-version: 20
+          cache: npm
+          cache-dependency-path: package-lock.json
 
-      - name: Run tests
-        run: cargo test
-        working-directory: backend
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build shared
+        run: npm run build --workspace=shared
+
+      - name: Test shared
+        run: npm test --workspace=shared
+
+      - name: Build backend
+        run: npm run build --workspace=backend
+
+      - name: Test backend
+        run: npm test --workspace=backend
 
   deploy:
     name: Deploy to Fly
@@ -59,7 +72,6 @@ jobs:
       - uses: superfly/flyctl-actions/setup-flyctl@master
 
       - name: Deploy
-        run: flyctl deploy --remote-only
-        working-directory: backend
+        run: flyctl deploy --config backend/fly.toml --remote-only
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
