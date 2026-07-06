@@ -71,6 +71,16 @@ export function GameScreen() {
     setOrder(Array.from({ length: myRack.length }, (_, i) => i));
   }, [myRack]);
 
+  // Tiles can be planned on the board while waiting for the opponent to
+  // move (see placement/interactive below, which no longer require
+  // myTurn). If their move lands on a square we've planned a tile on, that
+  // plan is no longer valid -- recall the whole planned move rather than
+  // leaving a partial/stale one sitting on the board.
+  useEffect(() => {
+    if (!game) return;
+    setPending((p) => (p.some((t) => !isEmpty(game.board, t.row, t.col)) ? [] : p));
+  }, [game?.board]);
+
   // iOS Safari ignores the viewport meta's zoom restrictions and doesn't
   // reliably honor touch-action:none on ancestors for the pinch/double-tap
   // zoom gesture specifically, so block it directly at the source: Safari's
@@ -175,7 +185,7 @@ export function GameScreen() {
       const occupied =
         !isEmpty(game!.board, row, col) ||
         pending.some((p) => p.row === row && p.col === col && p.rackIndex !== draggedRackIndex);
-      return { type: "board", row, col, valid: myTurn && !finished && !occupied };
+      return { type: "board", row, col, valid: !finished && !occupied };
     }
     return null;
   }
@@ -419,7 +429,7 @@ export function GameScreen() {
             board={game.board}
             pending={pending}
             wordEdges={wordEdges}
-            interactive={myTurn && !finished}
+            interactive={!finished}
             onCellClick={removePendingTile}
             dropTarget={dropTarget?.type === "board" ? dropTarget : null}
             draggingFrom={dragActive?.origin.kind === "board" ? dragActive.origin : null}
@@ -490,6 +500,9 @@ export function GameScreen() {
                   Play {placement.valid && pending.length > 0 ? `(${placement.score})` : ""}
                 </button>
               </div>
+              {!myTurn && hasPending && (
+                <p className="hint-text">Planned -- will stay on the board until it's your turn to play.</p>
+              )}
             </>
           )}
         </div>
