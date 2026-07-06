@@ -34,7 +34,7 @@ async function main(): Promise<void> {
   const workosJwksUrl = requireEnv("WORKOS_JWKS_URL");
   const electricUrl = requireEnv("ELECTRIC_URL");
 
-  const jwksRes = await fetch(workosJwksUrl);
+  const jwksRes = await fetch(workosJwksUrl, { signal: AbortSignal.timeout(10_000) });
   const jwksJson = (await jwksRes.json()) as { keys: Array<Record<string, unknown>> };
   const jwks = new Map<string, KeyLike>();
   for (const jwk of jwksJson.keys) {
@@ -47,7 +47,10 @@ async function main(): Promise<void> {
   }
   console.log(`loaded ${jwks.size} WorkOS JWKS key(s)`);
 
-  const pool = new Pool({ connectionString: databaseUrl });
+  // Without an explicit timeout, a stalled TCP handshake (e.g. a freshly
+  // provisioned Neon branch) hangs the pool forever instead of surfacing an
+  // error — pg's default connectionTimeoutMillis is 0 (no timeout).
+  const pool = new Pool({ connectionString: databaseUrl, connectionTimeoutMillis: 10_000 });
 
   await runMigrations(pool, path.join(backendRoot, "migrations"));
   console.log("migrations applied");
