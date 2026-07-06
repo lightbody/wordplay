@@ -1,82 +1,33 @@
-// Client-side mirror of the Rust engine: board codec, premium layout, tile
-// values, a local placement checker, and provisional scoring. The server
-// remains authoritative (and owns the dictionary); this only powers the
-// Play-button state and the live score preview before a move is submitted.
+// Thin wrapper around @wordplay/shared: re-exports the board/premium/scoring
+// primitives, keeps overlay() (frontend-only, since PendingTile carries a
+// UI-only rackIndex), and adapts shared's dictionary-blind checkStructure
+// into the PlacementCheck shape existing callers (GameScreen.tsx) expect.
+// Phase C replaces checkPlacement with a dictionary-aware entry point.
 
+import {
+  N,
+  CENTER,
+  applyPlacedTiles,
+  cellAt,
+  checkStructure,
+  isEmpty,
+  letterValue,
+  premium,
+  validatePlay,
+  wordText,
+  type Dictionary,
+  type PlacedTile,
+  type Premium,
+} from "@wordplay/shared";
 import type { PendingTile } from "./types";
 
-export const N = 15;
-export const CENTER = 7;
-
-export type Premium = "" | "DL" | "TL" | "DW" | "TW";
-
-const LAYOUT = [
-  "T..d...T...d..T",
-  ".D...t...t...D.",
-  "..D...d.d...D..",
-  "d..D...d...D..d",
-  "....D.....D....",
-  ".t...t...t...t.",
-  "..d...d.d...d..",
-  "T..d...D...d..T",
-  "..d...d.d...d..",
-  ".t...t...t...t.",
-  "....D.....D....",
-  "d..D...d...D..d",
-  "..D...d.d...D..",
-  ".D...t...t...D.",
-  "T..d...T...d..T",
-];
-
-export function premium(row: number, col: number): Premium {
-  switch (LAYOUT[row][col]) {
-    case "d":
-      return "DL";
-    case "t":
-      return "TL";
-    case "D":
-      return "DW";
-    case "T":
-      return "TW";
-    default:
-      return "";
-  }
-}
-
-const VALUES: Record<string, number> = {
-  A: 1, E: 1, I: 1, O: 1, U: 1, L: 1, N: 1, S: 1, T: 1, R: 1,
-  D: 2, G: 2,
-  B: 3, C: 3, M: 3, P: 3,
-  F: 4, H: 4, V: 4, W: 4, Y: 4,
-  K: 5,
-  J: 8, X: 8,
-  Q: 10, Z: 10,
-};
-
-export function letterValue(cell: string): number {
-  // Lowercase board cells are blanks (0 points).
-  if (cell >= "a" && cell <= "z") return 0;
-  return VALUES[cell.toUpperCase()] ?? 0;
-}
-
-/** Board char at (row, col): '.' empty, 'A'-'Z' tile, 'a'-'z' blank. */
-export function cellAt(board: string, row: number, col: number): string {
-  return board[row * N + col];
-}
-
-export function isEmpty(board: string, row: number, col: number): boolean {
-  return cellAt(board, row, col) === ".";
-}
+export { N, CENTER, premium, letterValue, cellAt, isEmpty };
+export type { Premium };
 
 /** Board with pending tiles overlaid (blanks lowercased). */
 export function overlay(board: string, pending: PendingTile[]): string {
-  const cells = board.split("");
-  for (const t of pending) {
-    cells[t.row * N + t.col] = t.blank
-      ? t.letter.toLowerCase()
-      : t.letter.toUpperCase();
-  }
-  return cells.join("");
+  const tiles: PlacedTile[] = pending.map((t) => ({ row: t.row, col: t.col, letter: t.letter, blank: t.blank }));
+  return applyPlacedTiles(board, tiles);
 }
 
 export interface PlacementCheck {
@@ -87,6 +38,21 @@ export interface PlacementCheck {
   bingo: boolean;
 }
 
+const STRUCTURAL_REASONS: Record<string, string> = {
+  no_tiles: "No tiles placed",
+  too_many_tiles: "Too many tiles",
+  off_board: "Off the board",
+  occupied: "Square already occupied",
+  duplicate_position: "Duplicate tile position",
+  not_in_rack: "Tile not in rack",
+  not_in_line: "Tiles must be in one line",
+  gap: "No gaps allowed",
+  first_move_must_cover_center: "Opening move must cover the center",
+  first_move_too_short: "Opening move needs 2+ tiles",
+  not_connected: "Must connect to an existing word",
+  no_word_formed: "No word formed",
+};
+
 /**
  * Local placement validation mirroring the server's structural rules
  * (single line, contiguity, center/connectivity) and provisional scoring.
@@ -95,116 +61,46 @@ export interface PlacementCheck {
 export function checkPlacement(board: string, pending: PendingTile[]): PlacementCheck {
   if (pending.length === 0) return { valid: false, score: 0, bingo: false };
 
-  const firstMove = board.split("").every((c) => c === ".");
-  const rows = new Set(pending.map((t) => t.row));
-  const cols = new Set(pending.map((t) => t.col));
-  const sameRow = rows.size === 1;
-  const sameCol = cols.size === 1;
-  if (!sameRow && !sameCol) return { valid: false, reason: "Tiles must be in one line", score: 0, bingo: false };
-
-  const merged = overlay(board, pending);
-  const horizontal =
-    pending.length > 1
-      ? sameRow
-      : hasHorizontalNeighbor(merged, pending[0].row, pending[0].col);
-
-  // Contiguity across the placed span.
-  if (horizontal && sameRow) {
-    const row = pending[0].row;
-    const cs = pending.map((t) => t.col);
-    for (let c = Math.min(...cs); c <= Math.max(...cs); c++) {
-      if (isEmpty(merged, row, c)) return { valid: false, reason: "No gaps allowed", score: 0, bingo: false };
-    }
-  } else if (sameCol) {
-    const col = pending[0].col;
-    const rs = pending.map((t) => t.row);
-    for (let r = Math.min(...rs); r <= Math.max(...rs); r++) {
-      if (isEmpty(merged, r, col)) return { valid: false, reason: "No gaps allowed", score: 0, bingo: false };
-    }
+  const tiles: PlacedTile[] = pending.map((t) => ({ row: t.row, col: t.col, letter: t.letter, blank: t.blank }));
+  // GameScreen already enforces "player holds the tile" via the drag source
+  // (a PendingTile only exists because it came out of the rack), so satisfy
+  // checkStructure's rack check trivially with a rack built from the tiles
+  // themselves rather than re-deriving the real rack here.
+  const syntheticRack = tiles.map((t) => (t.blank ? "?" : t.letter.toUpperCase())).join("");
+  const result = checkStructure(board, syntheticRack, tiles);
+  if ("code" in result) {
+    return { valid: false, reason: STRUCTURAL_REASONS[result.code] ?? "Invalid move", score: 0, bingo: false };
   }
-
-  if (firstMove) {
-    if (pending.length < 2) return { valid: false, reason: "Opening move needs 2+ tiles", score: 0, bingo: false };
-    if (!pending.some((t) => t.row === CENTER && t.col === CENTER))
-      return { valid: false, reason: "Opening move must cover the center", score: 0, bingo: false };
-  } else if (!connectsToBoard(board, pending)) {
-    return { valid: false, reason: "Must connect to an existing word", score: 0, bingo: false };
-  }
-
-  const placed = new Set(pending.map((t) => `${t.row},${t.col}`));
-  const isNew = (r: number, c: number) => placed.has(`${r},${c}`);
-
-  const words: Array<Array<[number, number]>> = [];
-  const main = run(merged, pending[0].row, pending[0].col, horizontal);
-  if (main.length >= 2) words.push(main);
-  for (const t of pending) {
-    const cross = run(merged, t.row, t.col, !horizontal);
-    if (cross.length >= 2) words.push(cross);
-  }
-  if (words.length === 0) return { valid: false, reason: "No word formed", score: 0, bingo: false };
 
   let total = 0;
-  for (const cells of words) total += scoreWord(merged, cells, isNew);
+  for (const w of result.words) {
+    total += scoreExtractedWord(w);
+  }
   const bingo = pending.length === 7;
   if (bingo) total += 50;
 
   return { valid: true, score: total, bingo };
 }
 
-function hasHorizontalNeighbor(board: string, row: number, col: number): boolean {
-  return (
-    (col > 0 && !isEmpty(board, row, col - 1)) ||
-    (col + 1 < N && !isEmpty(board, row, col + 1))
-  );
-}
-
-function connectsToBoard(board: string, pending: PendingTile[]): boolean {
-  return pending.some((t) => {
-    const nb: Array<[number, number]> = [];
-    if (t.row > 0) nb.push([t.row - 1, t.col]);
-    if (t.row + 1 < N) nb.push([t.row + 1, t.col]);
-    if (t.col > 0) nb.push([t.row, t.col - 1]);
-    if (t.col + 1 < N) nb.push([t.row, t.col + 1]);
-    return nb.some(([r, c]) => !isEmpty(board, r, c));
-  });
-}
-
-function run(board: string, row: number, col: number, horizontal: boolean): Array<[number, number]> {
-  let r = row;
-  let c = col;
-  // Walk back to the start.
-  for (;;) {
-    const pr = horizontal ? r : r - 1;
-    const pc = horizontal ? c - 1 : c;
-    if (pr < 0 || pc < 0 || isEmpty(board, pr, pc)) break;
-    r = pr;
-    c = pc;
-  }
-  const cells: Array<[number, number]> = [];
-  for (;;) {
-    if (r >= N || c >= N || isEmpty(board, r, c)) break;
-    cells.push([r, c]);
-    if (horizontal) c++;
-    else r++;
-  }
-  return cells;
-}
-
-function scoreWord(
-  board: string,
-  cells: Array<[number, number]>,
-  isNew: (r: number, c: number) => boolean,
-): number {
+function scoreExtractedWord(word: { cells: Array<{ row: number; col: number; cell: string; newlyPlaced: boolean }> }): number {
   let sum = 0;
   let mult = 1;
-  for (const [r, c] of cells) {
-    let v = letterValue(cellAt(board, r, c));
-    if (isNew(r, c)) {
-      switch (premium(r, c)) {
-        case "DL": v *= 2; break;
-        case "TL": v *= 3; break;
-        case "DW": mult *= 2; break;
-        case "TW": mult *= 3; break;
+  for (const { row, col, cell, newlyPlaced } of word.cells) {
+    let v = letterValue(cell);
+    if (newlyPlaced) {
+      switch (premium(row, col)) {
+        case "DL":
+          v *= 2;
+          break;
+        case "TL":
+          v *= 3;
+          break;
+        case "DW":
+          mult *= 2;
+          break;
+        case "TW":
+          mult *= 3;
+          break;
       }
     }
     sum += v;
@@ -214,5 +110,50 @@ function scoreWord(
 
 /** Read a word's letters off a board region (for the move log / display). */
 export function wordAt(board: string, cells: Array<[number, number]>): string {
-  return cells.map(([r, c]) => cellAt(board, r, c).toUpperCase()).join("");
+  return wordText(board, cells);
+}
+
+export interface PlacementResult {
+  valid: boolean;
+  reason?: string;
+  score: number;
+  bingo: boolean;
+  /** Union of every word's cells (main word + all cross words), deduplicated. */
+  wordCells: Array<{ row: number; col: number }>;
+}
+
+/**
+ * The dictionary-aware placement check: structural rules plus a dictionary
+ * lookup for every word formed, via shared's validatePlay. This is the sole
+ * placement-checking entry point for GameScreen -- checkPlacement above only
+ * remains for the (dictionary-blind) unit tests/harness scenarios that don't
+ * need it.
+ */
+export function checkPlacementWithDictionary(
+  board: string,
+  rack: string,
+  pending: PendingTile[],
+  dictionary: Dictionary,
+): PlacementResult {
+  if (pending.length === 0) return { valid: false, score: 0, bingo: false, wordCells: [] };
+
+  const tiles: PlacedTile[] = pending.map((t) => ({ row: t.row, col: t.col, letter: t.letter, blank: t.blank }));
+  const outcome = validatePlay(board, rack, tiles, dictionary);
+  if ("code" in outcome) {
+    const reason = outcome.code === "invalid_words" ? "Not a valid word" : STRUCTURAL_REASONS[outcome.code];
+    return { valid: false, reason: reason ?? "Invalid move", score: 0, bingo: false, wordCells: [] };
+  }
+
+  const seen = new Set<string>();
+  const wordCells: Array<{ row: number; col: number }> = [];
+  for (const word of outcome.wordCells) {
+    for (const { row, col } of word.cells) {
+      const key = `${row},${col}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      wordCells.push({ row, col });
+    }
+  }
+
+  return { valid: true, score: outcome.total, bingo: outcome.bingo, wordCells };
 }

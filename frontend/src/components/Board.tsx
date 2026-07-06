@@ -1,12 +1,16 @@
 import { useRef } from "react";
 import { cellAt, N, premium } from "../engine";
 import type { PendingTile } from "../types";
+import type { EdgeSet } from "../wordOutline";
 import { Tile } from "./Tile";
 
 interface BoardProps {
   board: string;
   pending: PendingTile[];
-  lastMove?: Set<string>;
+  /** Perimeter outline for the pending (not-yet-submitted) move, when valid. */
+  wordEdges?: Map<string, EdgeSet>;
+  /** Perimeter outline for the most recently committed move. */
+  lastMoveEdges?: Map<string, EdgeSet>;
   onCellClick?: (row: number, col: number) => void;
   interactive?: boolean;
   /** Cell currently hovered while dragging a tile in from the rack or off the board. */
@@ -33,7 +37,8 @@ const DRAG_THRESHOLD = 8;
 export function Board({
   board,
   pending,
-  lastMove,
+  wordEdges,
+  lastMoveEdges,
   onCellClick,
   interactive,
   dropTarget,
@@ -126,7 +131,8 @@ export function Board({
       const pend = pendingAt.get(key);
       const prem = premium(row, col);
       const isCenter = row === 7 && col === 7;
-      const isLast = lastMove?.has(key);
+      const wordEdge = wordEdges?.get(key);
+      const lastEdge = lastMoveEdges?.get(key);
       const isDropTarget = dropTarget?.row === row && dropTarget?.col === col;
 
       let content = null;
@@ -160,7 +166,14 @@ export function Board({
             "cell",
             prem ? `cell-${prem.toLowerCase()}` : "",
             isCenter ? "cell-center" : "",
-            isLast ? "cell-last" : "",
+            wordEdge?.top ? "word-edge-top" : "",
+            wordEdge?.right ? "word-edge-right" : "",
+            wordEdge?.bottom ? "word-edge-bottom" : "",
+            wordEdge?.left ? "word-edge-left" : "",
+            lastEdge?.top ? "last-edge-top" : "",
+            lastEdge?.right ? "last-edge-right" : "",
+            lastEdge?.bottom ? "last-edge-bottom" : "",
+            lastEdge?.left ? "last-edge-left" : "",
             content ? "cell-filled" : "",
             isDropTarget ? (dropTarget!.valid ? "cell-drop-valid" : "cell-drop-invalid") : "",
           ]

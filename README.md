@@ -14,7 +14,8 @@ Mirrors the architecture of the `todo` reference app:
 
 | Layer | Tech |
 |---|---|
-| Backend | Rust + Axum, deployed on Fly.io |
+| Backend | Node.js + TypeScript (Fastify, `pg`), deployed on Fly.io |
+| Shared engine | `@wordplay/shared` npm workspace — game engine, dictionary, scoring, used by both backend and frontend |
 | Database | Neon (serverless Postgres) |
 | Realtime | ElectricSQL shape streams, auth-proxied through the backend |
 | Auth | WorkOS AuthKit (stateless bearer JWTs) |
@@ -37,36 +38,40 @@ Mirrors the architecture of the `todo` reference app:
 ## Layout
 
 ```
-backend/     Rust/Axum API + game engine (src/engine) + migrations
+backend/     Node/Fastify API + migrations
+shared/      @wordplay/shared — game engine, dictionary, scoring (used by backend + frontend)
 electric/    ElectricSQL Fly deployment (prebuilt image)
 frontend/    React SPA; functions/ holds the OG-preview Pages Function
 docker-compose.yml   Local Postgres (wal_level=logical) + Electric
 .github/     CI workflows + preview-env scripts
 ```
 
-The game rules live in `backend/src/engine/` as pure, dependency-free Rust
+The game rules live in `shared/src/` as pure, dependency-free TypeScript
 (board layout, tile bag, move validation, word extraction, scoring, the
-ENABLE dictionary, and end-game logic) with ~44 unit tests. A trimmed
-mirror in `frontend/src/engine.ts` powers the live score preview; the
-server always has the final say (and owns the dictionary).
+ENABLE dictionary, and end-game logic), consumed by both the backend (for
+authoritative validation) and the frontend (for instant client-side
+feedback as tiles are placed, including a live dictionary check) — one
+implementation, not two mirrors kept in sync by hand.
 
 ## Local development
 
 ```bash
-# 1. Start Postgres + Electric
+# 1. Install dependencies (npm workspaces — run once from the repo root)
+npm install
+
+# 2. Start Postgres + Electric
 docker compose up
 
-# 2. Backend
+# 3. Backend
 cd backend
 cp .env.example .env
 cp .env.local.example .env.local   # fill in WORKOS_JWKS_URL
-cargo run                          # runs migrations on startup, listens on :8080
+npm run dev                        # tsx watch src/main.ts; runs migrations on startup, listens on :8080
 
-# 3. Frontend
+# 4. Frontend
 cd frontend
 cp .env.example .env
 cp .env.local.example .env.local   # fill in VITE_WORKOS_CLIENT_ID
-npm install
 npm run dev                        # Vite dev server on :5173, proxies /api -> :8080
 ```
 
@@ -75,8 +80,9 @@ Open two browser profiles signed in as different users to play a full game.
 ### Tests
 
 ```bash
-cd backend && cargo test           # engine unit tests + HTTP integration tests
-cd frontend && npm test            # engine mirror (vitest)
+npm test --workspace=shared        # game engine unit tests
+npm test --workspace=backend       # HTTP integration tests
+cd frontend && npm test            # dictionary/UI/placement tests (vitest)
 ```
 
 The integration tests need a Postgres (`DATABASE_URL`), mint their own
@@ -118,8 +124,10 @@ Standard Scrabble to start: 15×15 board with the usual premium squares,
 the opening move must cover the center star, standard 100-tile English
 distribution and letter values, 7-tile racks replenished from the bag, and
 two blanks. Turn actions are **play**, **swap** 1–7 tiles (requires ≥7 in
-the bag; costs your turn), **pass**, and **resign**. Words are validated
-server-side against the ENABLE word list.
+the bag; costs your turn), **pass**, and **resign**. Words are checked
+against the ENABLE word list client-side as tiles are placed (instant
+feedback, Play disabled for an invalid word) and again authoritatively by
+the server on submission.
 
 **Game options** (remembered as your default for next time):
 - *Deduct unused tile values from final score* — at game end, each player

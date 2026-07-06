@@ -10,8 +10,9 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@workos-inc/authkit-react": "^0.16.1",
     "@electric-sql/react": "^1.0.50",
+    "@wordplay/shared": "*",
+    "@workos-inc/authkit-react": "^0.16.1",
     "motion": "^11.11.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
@@ -22,6 +23,7 @@
     "@types/react": "^18.3.1",
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.1",
+    "fake-indexeddb": "^6.2.5",
     "typescript": "^5.4.5",
     "vite": "^5.3.1",
     "vitest": "^2.0.5"

@@ -15,6 +15,7 @@
   --dw: #b8d4f5;
   --tw: #f5b8d8;
   --cell-bg: #d8d8dc;
+  --word-outline: #b8860b;
   --board-line: #ffffff;
   --radius: 12px;
   --shadow: 0 2px 8px rgba(30, 30, 60, 0.08);
@@ -34,6 +35,7 @@
     --dw: #2c4a6e;
     --tw: #6b3350;
     --cell-bg: #4a4a53;
+    --word-outline: #d4a017;
   }
 }
 
@@ -357,7 +359,7 @@ textarea {
   position: relative;
   aspect-ratio: 1;
   min-width: 0;
-  border: none;
+  border: 3px solid transparent;
   border-radius: 8px 0 8px 0;
   background: var(--cell-bg);
   display: grid;
@@ -378,9 +380,14 @@ textarea {
   opacity: 0.65;
   pointer-events: none;
 }
-.cell-last {
-  box-shadow: inset 0 0 0 2px var(--accent);
-}
+.cell.word-edge-top { border-top-color: var(--word-outline); }
+.cell.word-edge-right { border-right-color: var(--word-outline); }
+.cell.word-edge-bottom { border-bottom-color: var(--word-outline); }
+.cell.word-edge-left { border-left-color: var(--word-outline); }
+.cell.last-edge-top { border-top-color: var(--accent); }
+.cell.last-edge-right { border-right-color: var(--accent); }
+.cell.last-edge-bottom { border-bottom-color: var(--accent); }
+.cell.last-edge-left { border-left-color: var(--accent); }
 .cell-drop-valid {
   box-shadow: inset 0 0 0 2px #16a34a;
 }
@@ -431,7 +438,7 @@ textarea {
   opacity: 0.75;
 }
 .tile-pending {
-  box-shadow: 0 0 0 2px var(--accent), 0 2px 6px rgba(99, 102, 241, 0.4);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
 }
 .tile-blank {
   background: linear-gradient(180deg, #fff, #f0f0f5);

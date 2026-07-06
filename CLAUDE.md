@@ -7,9 +7,19 @@ A Scrabble-like word game for two, played over the web.
 - `frontend/` — React 18 + TypeScript + Vite. Plain global stylesheet (`frontend/src/App.css`,
   CSS custom properties, no Tailwind/CSS-modules). `motion` (Framer Motion) for tile/layout
   animations. Data sync via ElectricSQL shapes (`useGamesShape`/`useMovesShape`/`useRacksShape`
-  in `frontend/src/shapes.ts`) against a Rust backend. Auth via WorkOS AuthKit.
-- `backend/` — Rust (Cargo), authoritative game engine + dictionary + Postgres.
+  in `frontend/src/shapes.ts`) against the Node backend. Auth via WorkOS AuthKit.
+- `backend/` — Node + TypeScript (Fastify, `pg`), authoritative game engine + dictionary +
+  Postgres.
+- `shared/` — `@wordplay/shared`, an npm workspace package. The single implementation of the game
+  engine, dictionary, and scoring (board/tiles/moves/scoring/dictionary/endgame), consumed by
+  `backend/` (compiled `shared/dist`) for authoritative validation and by `frontend/` (via a Vite/
+  tsconfig path alias straight to `shared/src`, no build step) for instant client-side move/word
+  feedback before a play is submitted.
 - `electric/` — ElectricSQL sync service config.
+
+This repo is an npm workspaces monorepo (`"workspaces": ["shared", "frontend", "backend"]` in the
+root `package.json`) — run `npm install` once from the repo root before working in any workspace,
+so `frontend`'s and `backend`'s `node_modules/@wordplay/shared` symlinks exist.
 
 ## Frontend commands
 
