@@ -497,12 +497,11 @@ export function GameScreen() {
                   {hasPending ? "Recall" : "Shuffle"}
                 </button>
                 <button className="btn btn-primary" disabled={!canPlay} onClick={submitPlay}>
-                  Play {placement.valid && pending.length > 0 ? `(${placement.score})` : ""}
+                  {myTurn
+                    ? `Play ${placement.valid && pending.length > 0 ? `(${placement.score})` : ""}`
+                    : "Their turn"}
                 </button>
               </div>
-              {!myTurn && hasPending && (
-                <p className="hint-text">Planned -- will stay on the board until it's your turn to play.</p>
-              )}
             </>
           )}
         </div>
