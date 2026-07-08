@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useApi, useProfile } from "../profile";
+import { Switch } from "../components/Switch";
 
 export function NewGame() {
   const profile = useProfile();
@@ -33,17 +34,17 @@ export function NewGame() {
       <div className="content">
         <div className="card">
           <h2>Game options</h2>
-          <label className="checkbox-row">
-            <input
-              type="checkbox"
-              checked={deductUnused}
-              onChange={(e) => setDeductUnused(e.target.checked)}
-            />
+          <div className="settings-row">
             <span>
               <strong>Deduct unused tile values from final score</strong>
               <small>At game end, each player loses points for tiles left on their rack.</small>
             </span>
-          </label>
+            <Switch
+              checked={deductUnused}
+              onChange={setDeductUnused}
+              aria-label="Deduct unused tile values from final score"
+            />
+          </div>
           <p className="muted">
             You'll play the opening move next, then challenge a friend by username or share an
             invite link.

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Dialog } from "./Dialog";
 import { Tile } from "./Tile";
 
 export function SwapDialog({
@@ -26,28 +27,11 @@ export function SwapDialog({
   const letters = [...selected].map((i) => rack[i]).join("");
 
   return (
-    <div className="modal-backdrop" onClick={onCancel}>
-      <div className="modal" onClick={(e) => e.stopPropagation()}>
-        <h3>Swap tiles</h3>
-        {disabled ? (
-          <p className="muted">Not enough tiles left in the bag to swap.</p>
-        ) : (
-          <>
-            <p className="muted">Pick 1–7 tiles to return. You'll lose this turn.</p>
-            <div className="swap-rack">
-              {rack.split("").map((l, i) => (
-                <Tile
-                  key={i}
-                  letter={l === "?" ? "" : l}
-                  blank={l === "?"}
-                  selected={selected.has(i)}
-                  onClick={() => toggle(i)}
-                />
-              ))}
-            </div>
-          </>
-        )}
-        <div className="modal-actions">
+    <Dialog
+      onClose={onCancel}
+      title="Swap tiles"
+      actions={
+        <>
           <button className="btn btn-ghost" onClick={onCancel}>
             Cancel
           </button>
@@ -58,8 +42,27 @@ export function SwapDialog({
           >
             Swap {selected.size > 0 ? selected.size : ""}
           </button>
-        </div>
-      </div>
-    </div>
+        </>
+      }
+    >
+      {disabled ? (
+        <p className="muted">Not enough tiles left in the bag to swap.</p>
+      ) : (
+        <>
+          <p className="muted">Pick 1–7 tiles to return. You'll lose this turn.</p>
+          <div className="swap-rack">
+            {rack.split("").map((l, i) => (
+              <Tile
+                key={i}
+                letter={l === "?" ? "" : l}
+                blank={l === "?"}
+                selected={selected.has(i)}
+                onClick={() => toggle(i)}
+              />
+            ))}
+          </div>
+        </>
+      )}
+    </Dialog>
   );
 }

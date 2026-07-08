@@ -14,8 +14,8 @@ import { useGamesShape, useMovesShape } from "../shapes";
 import type { Game, Move } from "../types";
 import { Spinner } from "../components/Spinner";
 
-const CREATOR_COLOR = "#6366f1";
-const OPPONENT_COLOR = "#ec4899";
+const CREATOR_COLOR = "var(--accent-primary)";
+const OPPONENT_COLOR = "var(--sky-600)";
 
 export function Summary() {
   const { id } = useParams<{ id: string }>();
@@ -96,9 +96,10 @@ export function Summary() {
                 <YAxis stroke="var(--muted)" fontSize={12} />
                 <Tooltip
                   contentStyle={{
-                    background: "var(--card)",
-                    border: "1px solid var(--border)",
+                    background: "var(--bg-surface)",
+                    border: "1px solid var(--border-subtle)",
                     borderRadius: 8,
+                    font: "var(--text-body-sm)",
                   }}
                 />
                 <Line

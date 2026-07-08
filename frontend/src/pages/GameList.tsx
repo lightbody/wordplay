@@ -6,6 +6,7 @@ import { useProfile } from "../profile";
 import { useTheme, type ThemePreference } from "../theme";
 import type { Game } from "../types";
 import { Spinner } from "../components/Spinner";
+import { Avatar } from "../components/Avatar";
 
 interface View {
   game: Game;
@@ -60,6 +61,7 @@ export function GameList() {
       <header className="topbar">
         <span className="wordmark wordmark-sm">Wordplay</span>
         <div className="topbar-right">
+          <Avatar name={profile.username} size={28} />
           <span className="username-chip">@{profile.username}</span>
           <select
             className="btn btn-ghost theme-select"
@@ -120,10 +122,13 @@ function Section({
             className={`game-card${accent ? " game-card-accent" : ""}`}
           >
             <div className="game-card-main">
-              <span className="opponent">vs @{v.opponentName}</span>
-              <span className="score-line">
-                {v.myScore} – {v.theirScore}
-              </span>
+              <Avatar name={v.opponentName} size={40} />
+              <div className="game-card-text">
+                <span className="opponent">vs @{v.opponentName}</span>
+                <span className="score-line">
+                  {v.myScore} – {v.theirScore}
+                </span>
+              </div>
             </div>
             <div className="game-card-meta">
               {v.game.status === "finished" ? (
