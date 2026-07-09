@@ -21,6 +21,16 @@ This repo is an npm workspaces monorepo (`"workspaces": ["shared", "frontend", "
 root `package.json`) — run `npm install` once from the repo root before working in any workspace,
 so `frontend`'s and `backend`'s `node_modules/@wordplay/shared` symlinks exist.
 
+## Frontend UI glossary
+
+`frontend/GLOSSARY.md` is the shared vocabulary for the frontend's visual/UI pieces — board,
+cells, premium squares, rack, rack slots, tiles (committed/pending/blank), scorebar, tiles-left
+ring, action bar (Play/Recall-Shuffle/Swap/More), dialogs (blank picker, swap dialog, more menu),
+game cards, etc. When discussing or implementing a UI change with the user, use the terms defined
+there rather than inventing new ones or describing elements structurally — it's faster and less
+ambiguous for both sides. When you add, rename, or restructure a frontend component or a named UI
+element, update `frontend/GLOSSARY.md` in the same change so it never drifts from the code.
+
 ## Frontend commands
 
 Run from `frontend/`:
