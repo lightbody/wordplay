@@ -15,7 +15,7 @@
 import { useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import type { Dictionary } from "@wordplay/shared";
-import { N, checkPlacementWithDictionary, isEmpty } from "./engine";
+import { N, checkPlacement, checkPlacementWithDictionary, isEmpty } from "./engine";
 import { moveItem, rackColumnAt } from "./dragMath";
 import { outlineEdges } from "./wordOutline";
 import type { PendingTile } from "./types";
@@ -322,6 +322,17 @@ function OutlineHarness({ initialInvalid }: { initialInvalid: boolean }) {
   const dictionary = makeMockDictionary(invalid ? BAD_WORD : null);
   const placement = checkPlacementWithDictionary(OUTLINE_BOARD, rack, OUTLINE_PENDING, dictionary);
   const wordEdges = placement.valid ? outlineEdges(placement.wordCells) : undefined;
+  // Same "lowest/rightmost pending tile" + dictionary-blind fallback score
+  // logic as GameScreen -- see its scoreBadge comment.
+  const corner = OUTLINE_PENDING.reduce((best, t) =>
+    t.row > best.row || (t.row === best.row && t.col > best.col) ? t : best,
+  );
+  const scoreBadge = {
+    row: corner.row,
+    col: corner.col,
+    score: placement.valid ? placement.score : checkPlacement(OUTLINE_BOARD, OUTLINE_PENDING).score,
+    valid: placement.valid,
+  };
 
   return (
     <div className="app-page game-screen" id="harness-root">
@@ -329,20 +340,30 @@ function OutlineHarness({ initialInvalid }: { initialInvalid: boolean }) {
         id="debug-log"
         style={{ position: "fixed", top: 0, right: 0, fontSize: 10, background: "#fff", color: "#000", zIndex: 999 }}
       >
-        dict: {invalid ? "invalid (SIT rejected)" : "valid"} | placement.valid: {String(placement.valid)}
+        dict: {invalid ? "invalid (SIT rejected)" : "valid"} | placement.valid: {String(placement.valid)} | badge
+        score: {scoreBadge.score}
       </div>
       <div className="game-middle">
         <BoardViewport>
-          <Board board={OUTLINE_BOARD} pending={OUTLINE_PENDING} wordEdges={wordEdges} />
+          <Board board={OUTLINE_BOARD} pending={OUTLINE_PENDING} wordEdges={wordEdges} scoreBadge={scoreBadge} />
         </BoardViewport>
       </div>
       <div className="bottom-bar">
         <div className="game-actions">
-          <button className="btn" id="toggle-dict" onClick={() => setInvalid((v) => !v)}>
-            {invalid ? "Make valid" : "Make invalid"}
+          <button className="action-btn" id="toggle-dict" onClick={() => setInvalid((v) => !v)}>
+            <span className="action-icon action-icon-shuffle" aria-hidden="true" />
+            <span>{invalid ? "Make valid" : "Make invalid"}</span>
           </button>
-          <button className="btn btn-primary" id="play-button" disabled={!placement.valid}>
-            Play {placement.valid ? `(${placement.score})` : ""}
+          <button className="action-btn" disabled>
+            <span className="action-icon action-icon-swap" aria-hidden="true" />
+            <span>Swap</span>
+          </button>
+          <button className="action-btn" disabled>
+            <span className="action-icon action-icon-more" aria-hidden="true" />
+            <span>More</span>
+          </button>
+          <button className="btn btn-primary action-play" id="play-button" disabled={!placement.valid}>
+            Play
           </button>
         </div>
       </div>

@@ -15,6 +15,11 @@ interface BoardProps {
   dropTarget?: { row: number; col: number; valid: boolean } | null;
   /** The pending tile currently being drag-picked-up off the board, if any. */
   draggingFrom?: { row: number; col: number } | null;
+  /** Live provisional score for the in-flight pending move, shown as a badge
+   * on the lowest/rightmost pending tile -- green once the placement is
+   * dictionary-valid, dark blue (still showing the potential score) while
+   * it isn't. */
+  scoreBadge?: { row: number; col: number; score: number; valid: boolean } | null;
   onTileDragStart?: (row: number, col: number, clientX: number, clientY: number, rect: DOMRect) => void;
   onTileDragMove?: (clientX: number, clientY: number) => void;
   onTileDragEnd?: (clientX: number, clientY: number) => void;
@@ -100,6 +105,7 @@ export function Board({
   interactive,
   dropTarget,
   draggingFrom,
+  scoreBadge,
   onTileDragStart,
   onTileDragMove,
   onTileDragEnd,
@@ -242,6 +248,13 @@ export function Board({
       // Green highlight fill behind the in-progress (valid) pending word.
       const fill = wordEdge ? { style: fillStyle("var(--word-fill)") } : null;
 
+      const badge =
+        scoreBadge && scoreBadge.row === row && scoreBadge.col === col ? (
+          <span className={`board-score-badge ${scoreBadge.valid ? "board-score-badge-valid" : "board-score-badge-invalid"}`}>
+            {scoreBadge.score}
+          </span>
+        ) : null;
+
       cells.push(
         <button
           key={key}
@@ -265,6 +278,7 @@ export function Board({
             (prem ? (
               <span className="cell-premium">{isCenter ? "★" : PREMIUM_LABEL[prem]}</span>
             ) : null)}
+          {badge}
         </button>,
       );
     }

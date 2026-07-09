@@ -908,6 +908,37 @@ textarea {
   transform: translateY(-3px);
 }
 
+/* Live provisional-score badge for the in-flight pending move, anchored to
+ * the lowest/rightmost pending tile (see Board.tsx's scoreBadge prop). Sits
+ * above tiles (z-index 2) and the green word-fill (z-index 1). */
+.board-score-badge {
+  position: absolute;
+  z-index: 3;
+  bottom: -7px;
+  right: -7px;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 4px;
+  border-radius: var(--radius-pill);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: clamp(9px, 2.6vw, 13px);
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+  pointer-events: none;
+}
+.board-score-badge-valid {
+  background: var(--word-fill);
+  color: var(--tile-rack);
+}
+.board-score-badge-invalid {
+  background: var(--tile-rack);
+  color: var(--tile-text);
+}
+
 .drag-ghost {
   position: fixed;
   left: 0;
@@ -1101,17 +1132,96 @@ textarea {
 /* --- actions --- */
 .game-actions {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  justify-content: center;
-  padding: 0.75rem 1rem;
+  align-items: stretch;
+  gap: 0.4rem;
+  padding: 0.6rem 0.75rem;
 }
-.game-actions .btn {
+.game-actions .btn.action-play {
   flex: 1;
-  min-width: 80px;
+  min-width: 0;
+  padding: 0 16px;
+  font-size: 15px;
 }
-.game-actions .btn-primary {
-  flex: 2;
+/* Secondary actions (More / Swap / Recall-Shuffle): a small icon over a
+ * caption-sized label, flat (no border/fill) until pressed. */
+.action-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  flex: 0 0 auto;
+  min-width: 52px;
+  padding: 4px 6px;
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  font: var(--text-caption);
+  font-size: 11px;
+  cursor: pointer;
+  transition: background var(--duration-fast) var(--ease-standard), transform var(--duration-fast) var(--ease-standard);
+}
+.action-btn:active {
+  transform: scale(0.95);
+  background: var(--bg-surface-sunken);
+}
+.action-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.action-icon {
+  display: block;
+  width: 16px;
+  height: 16px;
+}
+.action-icon-more {
+  position: relative;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: -6px 0 0 currentColor, 6px 0 0 currentColor;
+}
+.action-icon-swap {
+  position: relative;
+}
+.action-icon-swap::before,
+.action-icon-swap::after {
+  content: "";
+  position: absolute;
+  width: 0;
+  height: 0;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+}
+.action-icon-swap::before {
+  top: 1px;
+  left: 1px;
+  border-bottom: 6px solid currentColor;
+}
+.action-icon-swap::after {
+  bottom: 1px;
+  right: 1px;
+  border-top: 6px solid currentColor;
+}
+.action-icon-shuffle {
+  width: 14px;
+  height: 14px;
+  border: 2px solid currentColor;
+  border-radius: 50%;
+  border-right-color: transparent;
+  position: relative;
+}
+.action-icon-shuffle::after {
+  content: "";
+  position: absolute;
+  top: -3px;
+  right: -2px;
+  width: 0;
+  height: 0;
+  border-left: 4px solid transparent;
+  border-bottom: 5px solid currentColor;
 }
 .hint-text {
   text-align: center;
