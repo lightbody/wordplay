@@ -914,8 +914,13 @@ textarea {
 .board-score-badge {
   position: absolute;
   z-index: 3;
-  bottom: -3px;
-  right: -3px;
+  /* bottom/right:0 puts the badge's own corner exactly at the tile's
+   * corner; translate(50%,50%) then shifts it back by half its own box, so
+   * the tile's corner point lands at the badge's *center* regardless of the
+   * badge's width (which varies with the score's digit count). */
+  bottom: 0;
+  right: 0;
+  transform: translate(50%, 50%);
   min-width: 20px;
   height: 20px;
   padding: 0 4px;
