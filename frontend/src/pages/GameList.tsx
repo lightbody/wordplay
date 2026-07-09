@@ -3,9 +3,10 @@ import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@workos-inc/authkit-react";
 import { useGamesShape } from "../shapes";
 import { useProfile } from "../profile";
-import { useTheme, type ThemePreference } from "../theme";
 import type { Game } from "../types";
 import { Spinner } from "../components/Spinner";
+import { Avatar } from "../components/Avatar";
+import { AccountMenu } from "../components/AccountMenu";
 
 interface View {
   game: Game;
@@ -20,7 +21,6 @@ interface View {
 export function GameList() {
   const profile = useProfile();
   const { signOut, user } = useAuth();
-  const { preference, setPreference } = useTheme();
   const navigate = useNavigate();
   const { data: games, isLoading } = useGamesShape();
 
@@ -59,22 +59,7 @@ export function GameList() {
     <div className="app-page">
       <header className="topbar">
         <span className="wordmark wordmark-sm">Wordplay</span>
-        <div className="topbar-right">
-          <span className="username-chip">@{profile.username}</span>
-          <select
-            className="btn btn-ghost theme-select"
-            aria-label="Theme"
-            value={preference}
-            onChange={(e) => setPreference(e.target.value as ThemePreference)}
-          >
-            <option value="system">System theme</option>
-            <option value="light">Light</option>
-            <option value="dark">Dark</option>
-          </select>
-          <button className="btn btn-ghost" title={user?.email} onClick={() => signOut()}>
-            Sign out
-          </button>
-        </div>
+        <AccountMenu username={profile.username} email={user?.email} onSignOut={() => signOut()} />
       </header>
 
       <div className="content">
@@ -120,10 +105,13 @@ function Section({
             className={`game-card${accent ? " game-card-accent" : ""}`}
           >
             <div className="game-card-main">
-              <span className="opponent">vs @{v.opponentName}</span>
-              <span className="score-line">
-                {v.myScore} – {v.theirScore}
-              </span>
+              <Avatar name={v.opponentName} size={40} />
+              <div className="game-card-text">
+                <span className="opponent">vs @{v.opponentName}</span>
+                <span className="score-line">
+                  {v.myScore} – {v.theirScore}
+                </span>
+              </div>
             </div>
             <div className="game-card-meta">
               {v.game.status === "finished" ? (

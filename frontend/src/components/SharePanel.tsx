@@ -2,6 +2,7 @@ import { useState } from "react";
 import { ApiError } from "../api";
 import { useApi } from "../profile";
 import type { Game } from "../types";
+import { Toast } from "./Toast";
 
 export function SharePanel({ game }: { game: Game }) {
   const getApi = useApi();
@@ -80,10 +81,15 @@ export function SharePanel({ game }: { game: Game }) {
         <div className="or-divider">or</div>
 
         <button className="btn btn-lg btn-block" onClick={share}>
-          {copied ? "Link copied!" : "Share invite link"}
+          Share invite link
         </button>
         {inviteUrl && <p className="invite-url">{inviteUrl}</p>}
       </div>
+      {copied && (
+        <div className="share-toast-wrap">
+          <Toast tone="success">Link copied!</Toast>
+        </div>
+      )}
     </div>
   );
 }

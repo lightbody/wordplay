@@ -1,5 +1,7 @@
 import { motion } from "motion/react";
+import { BAG_SIZE } from "@wordplay/shared";
 import type { Game } from "../types";
+import { Avatar } from "./Avatar";
 
 export function ScoreBar({
   game,
@@ -22,9 +24,7 @@ export function ScoreBar({
   return (
     <div className="scorebar">
       <Player name={`@${me.name}`} score={me.score} active={myTurn} you />
-      <div className="scorebar-mid">
-        <span className="tiles-left">{game.tiles_remaining} left</span>
-      </div>
+      <TilesLeft count={game.tiles_remaining} />
       <Player name={`@${them.name}`} score={them.score} active={!myTurn && game.status === "active"} />
     </div>
   );
@@ -33,19 +33,34 @@ export function ScoreBar({
 function Player({ name, score, active, you }: { name: string; score: number; active: boolean; you?: boolean }) {
   return (
     <div className={`scorebar-player${active ? " active" : ""}`}>
-      <span className="player-name">
-        {name}
-        {you ? " (you)" : ""}
-      </span>
-      <motion.span
-        key={score}
-        className="player-score"
-        initial={{ scale: 1.3, color: "var(--accent)" }}
-        animate={{ scale: 1, color: "var(--text)" }}
-        transition={{ type: "spring", stiffness: 400, damping: 20 }}
-      >
-        {score}
-      </motion.span>
+      <Avatar name={name} size={28} />
+      <div className="scorebar-player-text">
+        <span className="player-name">
+          {name}
+          {you ? " (you)" : ""}
+        </span>
+        <motion.span
+          key={score}
+          className="player-score"
+          initial={{ scale: 1.3, color: "var(--accent)" }}
+          animate={{ scale: 1, color: "var(--text)" }}
+          transition={{ type: "spring", stiffness: 400, damping: 20 }}
+        >
+          {score}
+        </motion.span>
+      </div>
+    </div>
+  );
+}
+
+function TilesLeft({ count }: { count: number }) {
+  const pct = Math.max(0, Math.min(100, Math.round((count / BAG_SIZE) * 100)));
+  return (
+    <div className="tiles-ring" style={{ "--pct": pct } as React.CSSProperties}>
+      <div className="tiles-ring-inner">
+        <span className="tiles-ring-count">{count}</span>
+        <span className="tiles-ring-label">left</span>
+      </div>
     </div>
   );
 }

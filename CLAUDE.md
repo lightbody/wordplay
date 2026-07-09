@@ -35,25 +35,34 @@ Run from `frontend/`:
 `GameScreen` requires WorkOS auth + a live backend + ElectricSQL, none of which are available in
 a Claude Code remote session. To actually exercise a layout/component change end-to-end here (not
 just typecheck/build), use a harness that mounts the real components (`Board`, `BoardViewport`,
-`Rack`, `Tile`, `ScoreBar`, etc.) with hand-built mock data, no routing/auth/API involved. Vite's
-dev server picks up any `.html` file at the project root automatically — no config changes needed,
-just `npm run dev -- --port <port>` and navigate to `/<name>-harness.html`. Neither harness is
-imported from `main.tsx` or linked from any route, so they never affect the shipped app.
+`Rack`, `Tile`, `ScoreBar`, `AccountMenu`, etc.) with hand-built mock data, no routing/auth/API
+involved. Vite's dev server picks up any `.html` file at the project root automatically — no
+config changes needed, just `npm run dev -- --port <port>` and navigate to
+`/<name>-harness.html`. No harness is imported from `main.tsx` or linked from any route, so none
+of them ever affect the shipped app.
 
-- **`frontend/drag-harness.html` + `frontend/src/drag-harness.tsx`** — persistent, committed to the
-  repo. Covers the rack drag-and-drop interactions (drag a tile onto the board, drag within the
-  rack to reorder with the live "make room" slide). Extend this one in place as drag/board/rack
-  behavior evolves, rather than writing a new throwaway harness for the same components — the
-  Playwright setup below and the touch-gesture gotchas took real time to work out the first time,
-  and re-deriving them from scratch each session is wasted effort now that a working harness
-  exists. If you add a genuinely new scenario, add a new mock/state variant inside this file rather
-  than spinning up a parallel harness for the same components.
-- **`frontend/zoom-harness.html` + `frontend/src/zoom-harness.tsx`** — throwaway. Recreate it when
-  you need to verify `BoardViewport`'s pinch/pan/zoom behavior specifically, and delete both files
-  before committing; they're scaffolding, not part of the app.
+Existing harnesses, all persistent (committed to the repo):
 
-Only build a new harness from scratch when the components under test aren't already covered by
-one of the above.
+- **`frontend/drag-harness.html` + `frontend/src/drag-harness.tsx`** — rack drag-and-drop
+  interactions (drag a tile onto the board, drag within the rack to reorder with the live "make
+  room" slide).
+- **`frontend/zoom-harness.html` + `frontend/src/zoom-harness.tsx`** — `BoardViewport`'s
+  pinch/pan/zoom behavior (double-tap-to-zoom, the zoom-crop drop-shadow overlay).
+- **`frontend/header-harness.html` + `frontend/src/header-harness.tsx`** — the in-game topbar
+  (back chevron) and `ScoreBar`.
+- **`frontend/account-menu-harness.html` + `frontend/src/account-menu-harness.tsx`** — the
+  `AccountMenu` avatar dropdown (theme picker, sign out) from the landing page header.
+
+Extend the matching harness in place as behavior evolves, rather than writing a new one for
+components it already covers — the Playwright setup below and the touch-gesture gotchas took real
+time to work out the first time, and re-deriving them from scratch each session is wasted effort
+now that a working harness exists. If you add a genuinely new scenario for components one of these
+already mounts, add a new mock/state variant inside that file rather than spinning up a parallel
+harness for the same components.
+
+When a change needs a **new** harness (none of the above cover the components under test), ask the
+user whether to commit it as persistent (like the ones above) or delete it once you're done
+verifying (throwaway) — don't assume either way.
 
 Playwright + a pre-installed Chromium are available in this environment
 (`/opt/pw-browsers/chromium`), but the `playwright` npm package isn't a project dependency and

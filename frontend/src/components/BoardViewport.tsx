@@ -63,6 +63,11 @@ export function BoardViewport({ children }: { children: React.ReactNode }) {
     if (surfaceRef.current) {
       surfaceRef.current.style.transform = `translate(${t.x}px, ${t.y}px) scale(${t.scale})`;
     }
+    // Set imperatively (not via React state) for the same reason the
+    // transform itself is: this runs on every pointermove/animation frame of
+    // a gesture, and a state-driven re-render at that frequency would fight
+    // the gesture's own smoothness.
+    viewportRef.current?.classList.toggle("zoomed", t.scale > 1.01);
   }
 
   function clamp(t: Transform, rect: DOMRect): Transform {
@@ -208,6 +213,7 @@ export function BoardViewport({ children }: { children: React.ReactNode }) {
         <div ref={surfaceRef} className="board-surface" style={{ transform: "translate(0px, 0px) scale(1)" }}>
           {children}
         </div>
+        <div className="board-zoom-shadow" aria-hidden="true" />
       </div>
     </div>
   );
