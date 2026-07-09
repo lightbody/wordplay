@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { ApiError } from "../api";
-import { checkPlacementWithDictionary, isEmpty } from "../engine";
+import { checkPlacement, checkPlacementWithDictionary, isEmpty } from "../engine";
 import { useDictionary } from "../dictionary";
 import { moveItem, rackColumnAt } from "../dragMath";
 import { useApi, useProfile } from "../profile";
@@ -20,6 +20,7 @@ import { BlankPicker } from "../components/BlankPicker";
 import { SwapDialog } from "../components/SwapDialog";
 import { MoreMenu } from "../components/MoreMenu";
 import { SharePanel } from "../components/SharePanel";
+import { MoreIcon, RecallIcon, ShuffleIcon, SwapIcon } from "../components/icons";
 
 type DropTarget = { type: "board"; row: number; col: number; valid: boolean } | { type: "rack"; index: number };
 
@@ -148,6 +149,33 @@ export function GameScreen() {
     : { valid: false, score: 0, bingo: false, wordCells: [] };
   const wordEdges = placement.valid ? outlineEdges(placement.wordCells) : undefined;
   const canPlay = myTurn && !finished && pending.length > 0 && placement.valid && !busy;
+
+  // Live provisional-score badge on the board, anchored to the lowest/
+  // rightmost cell of the word(s) the pending move forms -- the same region
+  // the green outline traces (or would trace, if the move were valid), which
+  // can include pre-existing committed tiles the pending tiles hook onto
+  // (e.g. playing M-E-E above an existing committed K anchors the word at
+  // that K, not at the lowest *pending* tile). Falls back to the
+  // dictionary-blind structural check (still meaningful for a real word the
+  // dictionary just hasn't loaded yet, or a word that isn't in the
+  // dictionary) so the player gets score feedback even before/without a
+  // dictionary-valid placement, and falls back further to the pending tiles
+  // themselves if the placement isn't even structurally valid yet (e.g. a
+  // gap or disconnected tiles, where no word region exists at all).
+  const scoreBadge = (() => {
+    if (pending.length === 0) return null;
+    let region: Array<{ row: number; col: number }> = placement.wordCells;
+    let score = placement.score;
+    if (!placement.valid) {
+      const structural = checkPlacement(game.board, pending);
+      region = structural.wordCells.length > 0 ? structural.wordCells : pending;
+      score = structural.score;
+    }
+    const corner = region.reduce((best, t) =>
+      t.row > best.row || (t.row === best.row && t.col > best.col) ? t : best,
+    );
+    return { row: corner.row, col: corner.col, score, valid: placement.valid };
+  })();
 
   function placeLetterAt(rackIndex: number, row: number, col: number) {
     const letter = myRack[rackIndex];
@@ -435,6 +463,7 @@ export function GameScreen() {
             board={game.board}
             pending={pending}
             wordEdges={wordEdges}
+            scoreBadge={scoreBadge}
             interactive={!finished}
             onCellClick={removePendingTile}
             dropTarget={dropTarget?.type === "board" ? dropTarget : null}
@@ -471,11 +500,12 @@ export function GameScreen() {
                 onDragCancel={cancelTileDrag}
               />
               <div className="game-actions">
-                <button className="btn" onClick={hasPending ? recall : shuffle}>
-                  {hasPending ? "Recall" : "Shuffle"}
+                <button className="action-btn" onClick={hasPending ? recall : shuffle}>
+                  {hasPending ? <RecallIcon /> : <ShuffleIcon />}
+                  <span>{hasPending ? "Recall" : "Shuffle"}</span>
                 </button>
-                <button className="btn btn-primary" disabled={!canPlay} onClick={submitPlay}>
-                  Play opening {placement.valid ? `(${placement.score})` : ""}
+                <button className="btn btn-primary action-play" disabled={!canPlay} onClick={submitPlay}>
+                  Play
                 </button>
               </div>
               <p className="hint-text">Play your opening word, then invite an opponent.</p>
@@ -493,19 +523,20 @@ export function GameScreen() {
                 onDragCancel={cancelTileDrag}
               />
               <div className="game-actions">
-                <button className="btn" onClick={() => setMoreOpen(true)}>
-                  More
+                <button className="action-btn" onClick={() => setMoreOpen(true)}>
+                  <MoreIcon />
+                  <span>More</span>
                 </button>
-                <button className="btn" disabled={!myTurn || busy} onClick={() => setSwapOpen(true)}>
-                  Swap
+                <button className="action-btn" disabled={!myTurn || busy} onClick={() => setSwapOpen(true)}>
+                  <SwapIcon />
+                  <span>Swap</span>
                 </button>
-                <button className="btn" onClick={hasPending ? recall : shuffle}>
-                  {hasPending ? "Recall" : "Shuffle"}
+                <button className="action-btn" onClick={hasPending ? recall : shuffle}>
+                  {hasPending ? <RecallIcon /> : <ShuffleIcon />}
+                  <span>{hasPending ? "Recall" : "Shuffle"}</span>
                 </button>
-                <button className="btn btn-primary" disabled={!canPlay} onClick={submitPlay}>
-                  {myTurn
-                    ? `Play ${placement.valid && pending.length > 0 ? `(${placement.score})` : ""}`
-                    : "Their turn"}
+                <button className="btn btn-primary action-play" disabled={!canPlay} onClick={submitPlay}>
+                  {myTurn ? "Play" : "Their turn"}
                 </button>
               </div>
             </>

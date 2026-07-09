@@ -67,6 +67,12 @@ Top to bottom, the game screen (`.game-screen`) is laid out as:
 - **Word fill** / **highlight** (`--word-fill`, green) — the fill painted behind the cells of
   the in-progress pending move once it forms a dictionary-valid word, tracing an outline
   around the whole played word (see `wordOutline.ts`). Referred to as "the green outline/fill".
+- **Score badge** (`.board-score-badge`) — the small circular provisional-score indicator
+  overlaid on the lowest/rightmost pending tile of the in-flight move. Green with dark text
+  (`.board-score-badge-valid`) once the placement is dictionary-valid; dark blue with white
+  text (`.board-score-badge-invalid`) otherwise, still showing the potential score. Lives on
+  the board rather than the action bar so the **Play** button's label stays short and
+  single-line.
 - **Drop target** — the cell currently hovered while dragging a tile; styled green
   (`.cell-drop-valid`) if it's a legal empty square or red (`.cell-drop-invalid`) if occupied.
 
@@ -99,15 +105,21 @@ Top to bottom, the game screen (`.game-screen`) is laid out as:
 ## Action bar (bottom of the game screen)
 
 The **action bar** (`.game-actions`, the row of buttons at the very bottom) contents depend on
-phase:
-- **More** — opens the **more menu** dialog (Pass / Resign).
-- **Swap** — opens the **swap dialog** to exchange rack tiles for new ones from the bag.
-- **Recall / Shuffle** — a single button that toggles meaning: **Shuffle** randomizes rack tile
-  order when nothing is pending; once tiles are placed on the board it becomes **Recall**,
-  which pulls all pending tiles back to the rack.
-- **Play** — submits the current pending placement as a move; shows the live provisional score
-  in parentheses once the placement is dictionary-valid, and is disabled otherwise
-  (`canPlay`/`placement.valid`).
+phase. Every non-Play action renders as a compact **secondary action button** (`.action-btn`) — a
+small inline-SVG line icon (`components/icons.tsx`) over a caption-sized label, no border/fill
+until pressed — so the whole row stays on one line at any width:
+- **More** (`MoreIcon`, three dots) — opens the **more menu** dialog (Pass / Resign).
+- **Swap** (`SwapIcon`, offset up/down arrows) — opens the **swap dialog** to exchange rack
+  tiles for new ones from the bag.
+- **Recall / Shuffle** — a single button that toggles meaning and icon: **Shuffle**
+  (`ShuffleIcon`, crossing arrows) randomizes rack tile order when nothing is pending; once
+  tiles are placed on the board it becomes **Recall** (`RecallIcon`, a chevron), which pulls all
+  pending tiles back to the rack.
+- **Play** (`.action-play`, the one primary-styled button, taking the remaining row width) —
+  submits the current pending placement as a move. Always reads just "Play" (disabled unless
+  `canPlay`), or "Their turn" (disabled) when it isn't the player's turn — the live provisional
+  score moved off this button onto the board's **score badge** (see The board, above) so the
+  label never wraps to a second line.
 
 ## Dialogs & overlays
 

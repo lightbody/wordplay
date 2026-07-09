@@ -36,6 +36,10 @@ export interface PlacementCheck {
   /** Provisional score (no dictionary check). */
   score: number;
   bingo: boolean;
+  /** Union of every word's cells (main word + all cross words, including
+   * pre-existing anchor tiles), deduplicated -- empty unless the placement
+   * is at least structurally valid. */
+  wordCells: Array<{ row: number; col: number }>;
 }
 
 const STRUCTURAL_REASONS: Record<string, string> = {
@@ -59,7 +63,7 @@ const STRUCTURAL_REASONS: Record<string, string> = {
  * Does NOT check the dictionary.
  */
 export function checkPlacement(board: string, pending: PendingTile[]): PlacementCheck {
-  if (pending.length === 0) return { valid: false, score: 0, bingo: false };
+  if (pending.length === 0) return { valid: false, score: 0, bingo: false, wordCells: [] };
 
   const tiles: PlacedTile[] = pending.map((t) => ({ row: t.row, col: t.col, letter: t.letter, blank: t.blank }));
   // GameScreen already enforces "player holds the tile" via the drag source
@@ -69,17 +73,31 @@ export function checkPlacement(board: string, pending: PendingTile[]): Placement
   const syntheticRack = tiles.map((t) => (t.blank ? "?" : t.letter.toUpperCase())).join("");
   const result = checkStructure(board, syntheticRack, tiles);
   if ("code" in result) {
-    return { valid: false, reason: STRUCTURAL_REASONS[result.code] ?? "Invalid move", score: 0, bingo: false };
+    return {
+      valid: false,
+      reason: STRUCTURAL_REASONS[result.code] ?? "Invalid move",
+      score: 0,
+      bingo: false,
+      wordCells: [],
+    };
   }
 
   let total = 0;
+  const seen = new Set<string>();
+  const wordCells: Array<{ row: number; col: number }> = [];
   for (const w of result.words) {
     total += scoreExtractedWord(w);
+    for (const { row, col } of w.cells) {
+      const key = `${row},${col}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      wordCells.push({ row, col });
+    }
   }
   const bingo = pending.length === 7;
   if (bingo) total += 50;
 
-  return { valid: true, score: total, bingo };
+  return { valid: true, score: total, bingo, wordCells };
 }
 
 function scoreExtractedWord(word: { cells: Array<{ row: number; col: number; cell: string; newlyPlaced: boolean }> }): number {
