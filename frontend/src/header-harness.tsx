@@ -9,6 +9,7 @@
 import { createRoot } from "react-dom/client";
 import { ThemeProvider } from "./theme";
 import { ScoreBar } from "./components/ScoreBar";
+import { LastMoveSummary } from "./components/LastMoveSummary";
 import type { Game } from "./types";
 import "./App.css";
 
@@ -54,8 +55,10 @@ function Harness() {
         </header>
         <div className="game-middle">
           <ScoreBar game={myTurn} meCreator={true} myTurn={true} />
+          <LastMoveSummary summary={{ mine: true, word: "QUIXOTIC", points: 42 }} />
           <div style={{ height: 1, background: "var(--border-subtle)" }} />
           <ScoreBar game={theirTurn} meCreator={true} myTurn={false} />
+          <LastMoveSummary summary={{ mine: false, word: "ZEBRA", points: 18 }} />
         </div>
       </div>
     </ThemeProvider>

@@ -5,15 +5,17 @@ import { checkPlacementWithDictionary, isEmpty } from "../engine";
 import { useDictionary } from "../dictionary";
 import { moveItem, rackColumnAt } from "../dragMath";
 import { useApi, useProfile } from "../profile";
-import { useGamesShape, useRacksShape } from "../shapes";
+import { useGamesShape, useMovesShape, useRacksShape } from "../shapes";
 import type { Game, PendingTile, PlacedTileDto } from "../types";
 import { outlineEdges } from "../wordOutline";
+import { summarizeLastMove } from "../lastMove";
 import { Board } from "../components/Board";
 import { BoardViewport } from "../components/BoardViewport";
 import { Rack } from "../components/Rack";
 import { Tile } from "../components/Tile";
 import { Spinner } from "../components/Spinner";
 import { ScoreBar } from "../components/ScoreBar";
+import { LastMoveSummary } from "../components/LastMoveSummary";
 import { BlankPicker } from "../components/BlankPicker";
 import { SwapDialog } from "../components/SwapDialog";
 import { MoreMenu } from "../components/MoreMenu";
@@ -32,6 +34,7 @@ export function GameScreen() {
 
   const { data: games } = useGamesShape();
   const { data: racks } = useRacksShape();
+  const { data: moves } = useMovesShape(id!);
   const { dictionary } = useDictionary();
 
   const game = useMemo<Game | undefined>(
@@ -41,6 +44,10 @@ export function GameScreen() {
   const myRack = useMemo(
     () => racks?.find((r) => r.game_id === id)?.rack ?? "",
     [racks, id],
+  );
+  const lastMove = useMemo(
+    () => summarizeLastMove(moves ?? [], profile.id),
+    [moves, profile.id],
   );
 
   const [pending, setPending] = useState<PendingTile[]>([]);
@@ -421,6 +428,7 @@ export function GameScreen() {
 
       <div className="game-middle">
         <ScoreBar game={game} meCreator={meCreator} myTurn={myTurn} />
+        <LastMoveSummary summary={lastMove} />
 
         <BoardViewport>
           <Board

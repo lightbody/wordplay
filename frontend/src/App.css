@@ -1051,6 +1051,15 @@ textarea {
   font-variant-numeric: tabular-nums;
   color: var(--text-primary);
 }
+.last-move-summary {
+  text-align: center;
+  font: var(--text-caption);
+  color: var(--text-tertiary);
+  margin: -0.15rem 0 0;
+}
+.last-move-summary strong {
+  color: var(--text-primary);
+}
 .tiles-ring {
   --pct: 100;
   position: relative;
