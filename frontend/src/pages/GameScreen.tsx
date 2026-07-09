@@ -151,16 +151,29 @@ export function GameScreen() {
   const canPlay = myTurn && !finished && pending.length > 0 && placement.valid && !busy;
 
   // Live provisional-score badge on the board, anchored to the lowest/
-  // rightmost pending tile. Falls back to the dictionary-blind structural
-  // score (still meaningful for a real word the dictionary just hasn't
-  // loaded yet, or a word that isn't in the dictionary) so the player gets
-  // score feedback even before/without a dictionary-valid placement.
+  // rightmost cell of the word(s) the pending move forms -- the same region
+  // the green outline traces (or would trace, if the move were valid), which
+  // can include pre-existing committed tiles the pending tiles hook onto
+  // (e.g. playing M-E-E above an existing committed K anchors the word at
+  // that K, not at the lowest *pending* tile). Falls back to the
+  // dictionary-blind structural check (still meaningful for a real word the
+  // dictionary just hasn't loaded yet, or a word that isn't in the
+  // dictionary) so the player gets score feedback even before/without a
+  // dictionary-valid placement, and falls back further to the pending tiles
+  // themselves if the placement isn't even structurally valid yet (e.g. a
+  // gap or disconnected tiles, where no word region exists at all).
   const scoreBadge = (() => {
     if (pending.length === 0) return null;
-    const corner = pending.reduce((best, t) =>
+    let region: Array<{ row: number; col: number }> = placement.wordCells;
+    let score = placement.score;
+    if (!placement.valid) {
+      const structural = checkPlacement(game.board, pending);
+      region = structural.wordCells.length > 0 ? structural.wordCells : pending;
+      score = structural.score;
+    }
+    const corner = region.reduce((best, t) =>
       t.row > best.row || (t.row === best.row && t.col > best.col) ? t : best,
     );
-    const score = placement.valid ? placement.score : checkPlacement(game.board, pending).score;
     return { row: corner.row, col: corner.col, score, valid: placement.valid };
   })();
 

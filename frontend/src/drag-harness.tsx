@@ -304,7 +304,29 @@ const OUTLINE_PENDING: PendingTile[] = [
   { row: 8, col: 7, rackIndex: 2, letter: "T", blank: false },
 ];
 
-const BAD_WORD = "SIT";
+// Regression fixture for the score badge landing on the wrong tile: a
+// pending vertical word (M-E-E, all new) played *above* a pre-existing
+// committed word ("INKS"), so it anchors on the committed "K" -- the badge
+// must land on that K (the lowest/rightmost cell of the whole word "MEEK"),
+// not on the lowest *pending* tile (the second E), which sits one row above
+// it. Mirrors the exact board shape from the bug report.
+const ANCHOR_BOARD = (() => {
+  const cells = ".".repeat(N * N).split("");
+  const place = (row: number, col: number, letter: string) => {
+    cells[row * N + col] = letter;
+  };
+  place(9, 5, "I");
+  place(9, 6, "N");
+  place(9, 7, "K");
+  place(9, 8, "S");
+  return cells.join("");
+})();
+
+const ANCHOR_PENDING: PendingTile[] = [
+  { row: 6, col: 7, rackIndex: 0, letter: "M", blank: false },
+  { row: 7, col: 7, rackIndex: 1, letter: "E", blank: false },
+  { row: 8, col: 7, rackIndex: 2, letter: "E", blank: false },
+];
 
 function makeMockDictionary(rejectWord: string | null): Dictionary {
   return {
@@ -316,22 +338,36 @@ function makeMockDictionary(rejectWord: string | null): Dictionary {
   };
 }
 
-function OutlineHarness({ initialInvalid }: { initialInvalid: boolean }) {
+function ScoreHarness({
+  board,
+  pending,
+  badWord,
+  initialInvalid,
+}: {
+  board: string;
+  pending: PendingTile[];
+  badWord: string;
+  initialInvalid: boolean;
+}) {
   const [invalid, setInvalid] = useState(initialInvalid);
 
-  const rack = OUTLINE_PENDING.map((t) => t.letter).join("");
-  const dictionary = makeMockDictionary(invalid ? BAD_WORD : null);
-  const placement = checkPlacementWithDictionary(OUTLINE_BOARD, rack, OUTLINE_PENDING, dictionary);
+  const rack = pending.map((t) => t.letter).join("");
+  const dictionary = makeMockDictionary(invalid ? badWord : null);
+  const placement = checkPlacementWithDictionary(board, rack, pending, dictionary);
   const wordEdges = placement.valid ? outlineEdges(placement.wordCells) : undefined;
-  // Same "lowest/rightmost pending tile" + dictionary-blind fallback score
-  // logic as GameScreen -- see its scoreBadge comment.
-  const corner = OUTLINE_PENDING.reduce((best, t) =>
-    t.row > best.row || (t.row === best.row && t.col > best.col) ? t : best,
-  );
+  // Same "lowest/rightmost cell of the word(s) formed" + dictionary-blind
+  // fallback logic as GameScreen -- see its scoreBadge comment.
+  const region = placement.valid
+    ? placement.wordCells
+    : (() => {
+        const structural = checkPlacement(board, pending);
+        return structural.wordCells.length > 0 ? structural.wordCells : pending;
+      })();
+  const corner = region.reduce((best, t) => (t.row > best.row || (t.row === best.row && t.col > best.col) ? t : best));
   const scoreBadge = {
     row: corner.row,
     col: corner.col,
-    score: placement.valid ? placement.score : checkPlacement(OUTLINE_BOARD, OUTLINE_PENDING).score,
+    score: placement.valid ? placement.score : checkPlacement(board, pending).score,
     valid: placement.valid,
   };
 
@@ -341,8 +377,8 @@ function OutlineHarness({ initialInvalid }: { initialInvalid: boolean }) {
         id="debug-log"
         style={{ position: "fixed", top: 0, right: 0, fontSize: 10, background: "#fff", color: "#000", zIndex: 999 }}
       >
-        dict: {invalid ? "invalid (SIT rejected)" : "valid"} | placement.valid: {String(placement.valid)} | badge
-        score: {scoreBadge.score}
+        dict: {invalid ? `invalid (${badWord} rejected)` : "valid"} | placement.valid: {String(placement.valid)} |
+        badge score: {scoreBadge.score}
         {" · "}
         {/* Harness-only control (not part of the shipped app): flips the mock
          * dictionary to preview both the valid/invalid score-badge states. */}
@@ -352,7 +388,7 @@ function OutlineHarness({ initialInvalid }: { initialInvalid: boolean }) {
       </div>
       <div className="game-middle">
         <BoardViewport>
-          <Board board={OUTLINE_BOARD} pending={OUTLINE_PENDING} wordEdges={wordEdges} scoreBadge={scoreBadge} />
+          <Board board={board} pending={pending} wordEdges={wordEdges} scoreBadge={scoreBadge} />
         </BoardViewport>
       </div>
       <div className="bottom-bar">
@@ -382,6 +418,9 @@ const params = new URLSearchParams(window.location.search);
 const scenario = params.get("scenario");
 const initialInvalid = params.get("dict") === "invalid";
 
-createRoot(document.getElementById("root")!).render(
-  scenario === "outline" ? <OutlineHarness initialInvalid={initialInvalid} /> : <Harness />,
-);
+const scenarios: Record<string, JSX.Element> = {
+  outline: <ScoreHarness board={OUTLINE_BOARD} pending={OUTLINE_PENDING} badWord="SIT" initialInvalid={initialInvalid} />,
+  anchor: <ScoreHarness board={ANCHOR_BOARD} pending={ANCHOR_PENDING} badWord="MEEK" initialInvalid={initialInvalid} />,
+};
+
+createRoot(document.getElementById("root")!).render(scenarios[scenario ?? ""] ?? <Harness />);
