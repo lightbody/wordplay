@@ -723,7 +723,7 @@ textarea {
 .board-wrap {
   flex: 1;
   min-height: 0;
-  padding: 0.5rem 0.5rem;
+  padding: 0.25rem 0;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -738,6 +738,27 @@ textarea {
   user-select: none;
   position: relative;
   border-radius: 8px;
+}
+/* While zoomed in, the board pans/scales past the edges of this cropping
+   viewport -- an inset shadow on the top/bottom edges (where the ScoreBar
+   and rack sit) reads as the board continuing on a layer underneath them,
+   and doubles as the dividing line the plain border used to provide. A
+   sibling overlay (rather than a box-shadow directly on .board-viewport) is
+   required here: the board fills the viewport edge-to-edge with its own
+   opaque cell backgrounds, which would otherwise paint over an inset shadow
+   on the parent itself. */
+.board-zoom-shadow {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+  border-radius: 8px;
+  opacity: 0;
+  transition: opacity var(--duration-standard) var(--ease-standard);
+  box-shadow: inset 0 14px 12px -10px rgba(43, 36, 32, 0.55), inset 0 -14px 12px -10px rgba(43, 36, 32, 0.55);
+}
+.board-viewport.zoomed .board-zoom-shadow {
+  opacity: 1;
 }
 .board-surface {
   width: 100%;
@@ -960,7 +981,6 @@ textarea {
 .bottom-bar {
   flex-shrink: 0;
   background: var(--bg);
-  border-top: 1px solid var(--border);
   padding-bottom: env(safe-area-inset-bottom);
   touch-action: none;
 }
