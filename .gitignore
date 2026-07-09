@@ -19,7 +19,3 @@ Thumbs.db
 
 # Claude Code (machine-local)
 .claude/settings.local.json
-
-# Throwaway verification harness (see CLAUDE.md)
-frontend/zoom-harness.html
-frontend/src/zoom-harness.tsx
