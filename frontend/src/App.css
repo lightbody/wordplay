@@ -1170,58 +1170,9 @@ textarea {
   opacity: 0.4;
   cursor: not-allowed;
 }
-.action-icon {
+.action-btn svg {
   display: block;
-  width: 16px;
-  height: 16px;
-}
-.action-icon-more {
-  position: relative;
-  width: 4px;
-  height: 4px;
-  border-radius: 50%;
-  background: currentColor;
-  box-shadow: -6px 0 0 currentColor, 6px 0 0 currentColor;
-}
-.action-icon-swap {
-  position: relative;
-}
-.action-icon-swap::before,
-.action-icon-swap::after {
-  content: "";
-  position: absolute;
-  width: 0;
-  height: 0;
-  border-left: 4px solid transparent;
-  border-right: 4px solid transparent;
-}
-.action-icon-swap::before {
-  top: 1px;
-  left: 1px;
-  border-bottom: 6px solid currentColor;
-}
-.action-icon-swap::after {
-  bottom: 1px;
-  right: 1px;
-  border-top: 6px solid currentColor;
-}
-.action-icon-shuffle {
-  width: 14px;
-  height: 14px;
-  border: 2px solid currentColor;
-  border-radius: 50%;
-  border-right-color: transparent;
-  position: relative;
-}
-.action-icon-shuffle::after {
-  content: "";
-  position: absolute;
-  top: -3px;
-  right: -2px;
-  width: 0;
-  height: 0;
-  border-left: 4px solid transparent;
-  border-bottom: 5px solid currentColor;
+  flex-shrink: 0;
 }
 .hint-text {
   text-align: center;

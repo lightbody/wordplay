@@ -23,6 +23,7 @@ import { Board } from "./components/Board";
 import { BoardViewport } from "./components/BoardViewport";
 import { Rack } from "./components/Rack";
 import { Tile } from "./components/Tile";
+import { MoreIcon, RecallIcon, SwapIcon } from "./components/icons";
 import "./App.css";
 
 type DropTarget = { type: "board"; row: number; col: number; valid: boolean } | { type: "rack"; index: number };
@@ -342,6 +343,12 @@ function OutlineHarness({ initialInvalid }: { initialInvalid: boolean }) {
       >
         dict: {invalid ? "invalid (SIT rejected)" : "valid"} | placement.valid: {String(placement.valid)} | badge
         score: {scoreBadge.score}
+        {" · "}
+        {/* Harness-only control (not part of the shipped app): flips the mock
+         * dictionary to preview both the valid/invalid score-badge states. */}
+        <button id="toggle-dict" onClick={() => setInvalid((v) => !v)}>
+          toggle dictionary
+        </button>
       </div>
       <div className="game-middle">
         <BoardViewport>
@@ -350,17 +357,17 @@ function OutlineHarness({ initialInvalid }: { initialInvalid: boolean }) {
       </div>
       <div className="bottom-bar">
         <div className="game-actions">
-          <button className="action-btn" id="toggle-dict" onClick={() => setInvalid((v) => !v)}>
-            <span className="action-icon action-icon-shuffle" aria-hidden="true" />
-            <span>{invalid ? "Make valid" : "Make invalid"}</span>
+          <button className="action-btn" disabled>
+            <MoreIcon />
+            <span>More</span>
           </button>
           <button className="action-btn" disabled>
-            <span className="action-icon action-icon-swap" aria-hidden="true" />
+            <SwapIcon />
             <span>Swap</span>
           </button>
           <button className="action-btn" disabled>
-            <span className="action-icon action-icon-more" aria-hidden="true" />
-            <span>More</span>
+            <RecallIcon />
+            <span>Recall</span>
           </button>
           <button className="btn btn-primary action-play" id="play-button" disabled={!placement.valid}>
             Play

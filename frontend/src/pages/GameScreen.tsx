@@ -20,6 +20,7 @@ import { BlankPicker } from "../components/BlankPicker";
 import { SwapDialog } from "../components/SwapDialog";
 import { MoreMenu } from "../components/MoreMenu";
 import { SharePanel } from "../components/SharePanel";
+import { MoreIcon, RecallIcon, ShuffleIcon, SwapIcon } from "../components/icons";
 
 type DropTarget = { type: "board"; row: number; col: number; valid: boolean } | { type: "rack"; index: number };
 
@@ -487,7 +488,7 @@ export function GameScreen() {
               />
               <div className="game-actions">
                 <button className="action-btn" onClick={hasPending ? recall : shuffle}>
-                  <span className="action-icon action-icon-shuffle" aria-hidden="true" />
+                  {hasPending ? <RecallIcon /> : <ShuffleIcon />}
                   <span>{hasPending ? "Recall" : "Shuffle"}</span>
                 </button>
                 <button className="btn btn-primary action-play" disabled={!canPlay} onClick={submitPlay}>
@@ -510,15 +511,15 @@ export function GameScreen() {
               />
               <div className="game-actions">
                 <button className="action-btn" onClick={() => setMoreOpen(true)}>
-                  <span className="action-icon action-icon-more" aria-hidden="true" />
+                  <MoreIcon />
                   <span>More</span>
                 </button>
                 <button className="action-btn" disabled={!myTurn || busy} onClick={() => setSwapOpen(true)}>
-                  <span className="action-icon action-icon-swap" aria-hidden="true" />
+                  <SwapIcon />
                   <span>Swap</span>
                 </button>
                 <button className="action-btn" onClick={hasPending ? recall : shuffle}>
-                  <span className="action-icon action-icon-shuffle" aria-hidden="true" />
+                  {hasPending ? <RecallIcon /> : <ShuffleIcon />}
                   <span>{hasPending ? "Recall" : "Shuffle"}</span>
                 </button>
                 <button className="btn btn-primary action-play" disabled={!canPlay} onClick={submitPlay}>

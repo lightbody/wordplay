@@ -105,15 +105,16 @@ Top to bottom, the game screen (`.game-screen`) is laid out as:
 ## Action bar (bottom of the game screen)
 
 The **action bar** (`.game-actions`, the row of buttons at the very bottom) contents depend on
-phase. Every non-Play action renders as a compact **secondary action button** (`.action-btn`) —
-a small CSS-drawn icon (`.action-icon-*`) over a caption-sized label, no border/fill until
-pressed — so the whole row stays on one line at any width:
-- **More** (`.action-icon-more`, three dots) — opens the **more menu** dialog (Pass / Resign).
-- **Swap** (`.action-icon-swap`, up/down arrows) — opens the **swap dialog** to exchange rack
+phase. Every non-Play action renders as a compact **secondary action button** (`.action-btn`) — a
+small inline-SVG line icon (`components/icons.tsx`) over a caption-sized label, no border/fill
+until pressed — so the whole row stays on one line at any width:
+- **More** (`MoreIcon`, three dots) — opens the **more menu** dialog (Pass / Resign).
+- **Swap** (`SwapIcon`, offset up/down arrows) — opens the **swap dialog** to exchange rack
   tiles for new ones from the bag.
-- **Recall / Shuffle** (`.action-icon-shuffle`, circular arrow) — a single button that toggles
-  meaning: **Shuffle** randomizes rack tile order when nothing is pending; once tiles are placed
-  on the board it becomes **Recall**, which pulls all pending tiles back to the rack.
+- **Recall / Shuffle** — a single button that toggles meaning and icon: **Shuffle**
+  (`ShuffleIcon`, crossing arrows) randomizes rack tile order when nothing is pending; once
+  tiles are placed on the board it becomes **Recall** (`RecallIcon`, a chevron), which pulls all
+  pending tiles back to the rack.
 - **Play** (`.action-play`, the one primary-styled button, taking the remaining row width) —
   submits the current pending placement as a move. Always reads just "Play" (disabled unless
   `canPlay`), or "Their turn" (disabled) when it isn't the player's turn — the live provisional
