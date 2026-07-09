@@ -413,12 +413,10 @@ export function GameScreen() {
 
   return (
     <div className="app-page game-screen">
-      <header className="topbar">
-        <button className="btn btn-ghost" onClick={() => navigate("/")}>
-          ← Games
+      <header className="topbar game-header">
+        <button className="icon-btn" aria-label="Back to games" onClick={() => navigate("/")}>
+          <span className="chevron-left" />
         </button>
-        <span className="wordmark wordmark-sm">Wordplay</span>
-        <span />
       </header>
 
       <div className="game-middle">

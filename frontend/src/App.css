@@ -915,6 +915,38 @@ textarea {
 .game-screen .topbar {
   touch-action: none;
 }
+.game-header {
+  justify-content: flex-start;
+  border-bottom: none;
+  padding: 0.5rem 0.5rem 0;
+}
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-pill);
+  color: var(--text-primary);
+  cursor: pointer;
+  padding: 0;
+  transition: background var(--duration-fast) var(--ease-standard), transform var(--duration-fast) var(--ease-standard);
+}
+.icon-btn:active {
+  transform: scale(0.9);
+  background: var(--bg-surface-sunken);
+}
+.chevron-left {
+  display: block;
+  width: 11px;
+  height: 11px;
+  margin-left: 4px;
+  border-left: 2.5px solid currentColor;
+  border-bottom: 2.5px solid currentColor;
+  transform: rotate(45deg);
+}
 .game-middle {
   flex: 1;
   min-height: 0;
