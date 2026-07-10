@@ -177,6 +177,7 @@
   --tw: #f5b8d8;
   --cell-bg: #eeedeb;
   --word-fill: #8dc546;
+  --word-fill-highlight: #f2c94c;
   --board-line: #ffffff;
   --board-max: 540px;
 }
@@ -224,6 +225,7 @@
     --tw: #6b3350;
     --cell-bg: #4a4a53;
     --word-fill: #1fa35a;
+    --word-fill-highlight: #e0b429;
   }
 }
 
@@ -268,6 +270,7 @@
   --tw: #6b3350;
   --cell-bg: #4a4a53;
   --word-fill: #1fa35a;
+  --word-fill-highlight: #e0b429;
 }
 
 :root[data-theme="light"] {
@@ -315,6 +318,7 @@
   --tw: #f5b8d8;
   --cell-bg: #eeedeb;
   --word-fill: #8dc546;
+  --word-fill-highlight: #f2c94c;
 }
 
 @media (min-width: 600px) {
@@ -976,6 +980,20 @@ textarea {
 }
 .drag-ghost-over-board {
   opacity: 0.75;
+}
+
+/* Tiles from an opponent's just-landed move, flying in from the score bar
+ * to their board cell -- see GameScreen's incoming-move animation. Fixed
+ * positioning (like .drag-ghost above) escapes the board's own transform/
+ * zoom, so it always tracks real viewport coordinates regardless of any
+ * pan/zoom the board is mid-gesture on. Position/rotation/scale are all
+ * driven by motion's `animate`, not by this class. */
+.incoming-tile-fly {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 260;
+  pointer-events: none;
 }
 
 /* --- rack --- */
