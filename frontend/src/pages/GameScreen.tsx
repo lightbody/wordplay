@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { motion } from "motion/react";
 import { useNavigate, useParams } from "react-router-dom";
+import { wordCellsForCommittedPlacement } from "@wordplay/shared";
 import { ApiError } from "../api";
 import { cellAt, checkPlacement, checkPlacementWithDictionary, isEmpty } from "../engine";
 import { useDictionary } from "../dictionary";
 import { moveItem, rackColumnAt } from "../dragMath";
 import { useApi, useProfile } from "../profile";
 import { useGamesShape, useMovesShape, useRacksShape } from "../shapes";
-import type { Game, PendingTile, PlacedTileDto } from "../types";
+import type { Game, Move, PendingTile, PlacedTileDto } from "../types";
 import { outlineEdges } from "../wordOutline";
 import { summarizeLastMove } from "../lastMove";
 import { Board } from "../components/Board";
@@ -42,6 +44,24 @@ const JUST_PLAYED_FALLBACK_MS = 5000;
  * (which, unlike the tiles, has no synced-data race to wait out: it's a
  * purely local/cosmetic fade, so a fixed timer is enough). */
 const FILL_FADE_MS = 400;
+
+/** How long one opponent tile takes to fly in from the score bar to its
+ * board cell (see playIncomingMove). Kept as a single fixed-duration tween
+ * (not a spring) so its end time is deterministic -- the reveal timeout
+ * below fires exactly when the flight's own transition finishes, handing
+ * off to the real committed tile with no gap or double-render. */
+const INCOMING_FLIGHT_MS = 420;
+/** Delay between successive opponent tiles starting their flight, so a
+ * multi-letter play reads as being laid down one tile after another rather
+ * than all arriving at once. */
+const INCOMING_STAGGER_MS = 150;
+/** How long the opponent's post-landing yellow highlight stays fully solid
+ * before it starts fading. */
+const INCOMING_HIGHLIGHT_HOLD_MS = 2200;
+/** Duration of the yellow highlight's own fade-out, once triggered -- much
+ * slower than the green fade (FILL_FADE_MS-ish) since this one is meant to
+ * read as "gradually" dissolving rather than a quick undraw. */
+const INCOMING_HIGHLIGHT_FADE_MS = 900;
 
 /** True if a just-submitted move's tiles read left-to-right (a single tile
  * counts as horizontal, arbitrarily -- there's no direction to detect). */
@@ -81,6 +101,13 @@ export function GameScreen() {
     () => summarizeLastMove(moves ?? [], profile.id),
     [moves, profile.id],
   );
+  // The full record of the most recent move (unlike `lastMove` above, which
+  // is just the display summary) -- needed for its `tiles` to drive the
+  // incoming-move flight animation below.
+  const lastMoveRecord = useMemo<Move | undefined>(() => {
+    if (!moves || moves.length === 0) return undefined;
+    return moves.reduce((a, b) => (b.move_number > a.move_number ? b : a));
+  }, [moves]);
 
   const [pending, setPending] = useState<PendingTile[]>([]);
   const [order, setOrder] = useState<number[]>([]);
@@ -93,6 +120,33 @@ export function GameScreen() {
   // and Board's justPlayedFill prop. Keyed by `${row},${col}` -> delayMs.
   const [justPlayedFill, setJustPlayedFill] = useState<Map<string, number>>(new Map());
   const justPlayedFillTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Opponent tiles currently flying in from the score bar to their board
+  // cell, and the cells they're headed for (which Board renders as empty
+  // until each tile's flight lands) -- see playIncomingMove.
+  const [incomingTiles, setIncomingTiles] = useState<
+    {
+      row: number;
+      col: number;
+      letter: string;
+      blank: boolean;
+      x0: number;
+      y0: number;
+      x1: number;
+      y1: number;
+      size: number;
+      delayMs: number;
+      tilt: number;
+    }[]
+  >([]);
+  const [incomingHidden, setIncomingHidden] = useState<Set<string>>(new Set());
+  // The opponent's just-landed word, highlighted yellow once every tile has
+  // landed -- see Board's opponentHighlight prop.
+  const [opponentHighlight, setOpponentHighlight] = useState<{ cells: Set<string>; fading: boolean } | null>(null);
+  // The id of the last move we've already played the incoming-move
+  // animation for, so a re-render (or re-opening the game later) doesn't
+  // replay it for a move that's already landed.
+  const animatedMoveIdRef = useRef<string | null>(null);
+  const incomingTimeoutsRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   const [blankFor, setBlankFor] = useState<{ row: number; col: number; rackIndex: number } | null>(null);
   const [swapOpen, setSwapOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
@@ -123,8 +177,23 @@ export function GameScreen() {
     return () => {
       if (justPlayedTimeoutRef.current) clearTimeout(justPlayedTimeoutRef.current);
       if (justPlayedFillTimeoutRef.current) clearTimeout(justPlayedFillTimeoutRef.current);
+      incomingTimeoutsRef.current.forEach(clearTimeout);
     };
   }, []);
+
+  // Plays the fly-in-and-highlight animation for the opponent's most recent
+  // move -- both the instant it arrives live, and (per the feature's other
+  // half) the first time this screen mounts onto a game where the opponent's
+  // last move was already sitting there unseen. Guarded by
+  // animatedMoveIdRef so it fires exactly once per move id.
+  useEffect(() => {
+    if (!game || !lastMoveRecord) return;
+    if (lastMoveRecord.user_id === profile.id) return;
+    if (lastMoveRecord.move_type !== "play" || !lastMoveRecord.tiles || lastMoveRecord.tiles.length === 0) return;
+    if (animatedMoveIdRef.current === lastMoveRecord.id) return;
+    animatedMoveIdRef.current = lastMoveRecord.id;
+    playIncomingMove(lastMoveRecord.tiles);
+  }, [lastMoveRecord, game?.board, profile.id]);
 
   // Drops the just-played snapshot as soon as the synced board actually
   // reflects it -- the cascade's own CSS transition-delay/duration already
@@ -458,6 +527,84 @@ export function GameScreen() {
     });
   }
 
+  // Flies the opponent's just-landed tiles in from the score bar to their
+  // board cells, one after another, then highlights the word they formed in
+  // yellow for a few seconds before fading it out. `tiles` and `game.board`
+  // are both the *post-move* state (the move is already committed by the
+  // time this fires), which is exactly what wordCellsForCommittedPlacement
+  // wants -- no need to reconstruct the pre-move board.
+  function playIncomingMove(tiles: PlacedTileDto[]) {
+    if (!game) return;
+
+    incomingTimeoutsRef.current.forEach(clearTimeout);
+    incomingTimeoutsRef.current = [];
+
+    const words = wordCellsForCommittedPlacement(game.board, tiles);
+    const highlightCells = new Set<string>();
+    for (const w of words) for (const c of w.cells) highlightCells.add(`${c.row},${c.col}`);
+
+    const horizontal = playedHorizontally(
+      tiles.map((t, i) => ({ row: t.row, col: t.col, rackIndex: i, letter: t.letter, blank: t.blank })),
+    );
+    const ordered = orderCellsForCascade(tiles, horizontal);
+
+    const scoreEl = document.querySelector<HTMLElement>(".scorebar-player:last-child .player-score");
+    const scoreRect = scoreEl?.getBoundingClientRect();
+    const origin = scoreRect
+      ? { x: scoreRect.left + scoreRect.width / 2, y: scoreRect.top + scoreRect.height / 2 }
+      : { x: window.innerWidth - 40, y: 72 };
+
+    const hidden = new Set<string>();
+    const flying = ordered.map((t, i) => {
+      const key = `${t.row},${t.col}`;
+      hidden.add(key);
+      const cellEl = document.querySelector<HTMLElement>(`[data-board-row="${t.row}"][data-board-col="${t.col}"]`);
+      const rect = cellEl?.getBoundingClientRect();
+      const size = rect?.width ?? 32;
+      return {
+        row: t.row,
+        col: t.col,
+        letter: t.letter,
+        blank: t.blank,
+        x0: origin.x - size / 2,
+        y0: origin.y - size / 2,
+        x1: rect?.left ?? origin.x - size / 2,
+        y1: rect?.top ?? origin.y - size / 2,
+        size,
+        delayMs: i * INCOMING_STAGGER_MS,
+        tilt: (i % 2 === 0 ? -1 : 1) * (12 + (i % 3) * 5),
+      };
+    });
+
+    setIncomingHidden(hidden);
+    setIncomingTiles(flying);
+    setOpponentHighlight(null);
+
+    for (const t of flying) {
+      const landTimeout = setTimeout(() => {
+        setIncomingHidden((prev) => {
+          const next = new Set(prev);
+          next.delete(`${t.row},${t.col}`);
+          return next;
+        });
+        setIncomingTiles((prev) => prev.filter((f) => f.row !== t.row || f.col !== t.col));
+      }, t.delayMs + INCOMING_FLIGHT_MS);
+      incomingTimeoutsRef.current.push(landTimeout);
+    }
+
+    const totalFlightMs = (flying.length - 1) * INCOMING_STAGGER_MS + INCOMING_FLIGHT_MS;
+    const highlightTimeout = setTimeout(() => {
+      setOpponentHighlight({ cells: highlightCells, fading: false });
+      const fadeTimeout = setTimeout(() => {
+        setOpponentHighlight((prev) => (prev ? { ...prev, fading: true } : prev));
+        const clearTimeoutId = setTimeout(() => setOpponentHighlight(null), INCOMING_HIGHLIGHT_FADE_MS);
+        incomingTimeoutsRef.current.push(clearTimeoutId);
+      }, INCOMING_HIGHLIGHT_HOLD_MS);
+      incomingTimeoutsRef.current.push(fadeTimeout);
+    }, totalFlightMs);
+    incomingTimeoutsRef.current.push(highlightTimeout);
+  }
+
   async function submitPlay() {
     setBusy(true);
     setError(null);
@@ -557,6 +704,8 @@ export function GameScreen() {
             scoreBadge={scoreBadge}
             justPlayed={justPlayed}
             justPlayedFill={justPlayedFill}
+            hiddenCells={incomingHidden}
+            opponentHighlight={opponentHighlight}
             interactive={!finished}
             onCellClick={removePendingTile}
             dropTarget={dropTarget?.type === "board" ? dropTarget : null}
@@ -677,6 +826,19 @@ export function GameScreen() {
           <Tile letter={dragActive.letter} blank={dragActive.blank} />
         </div>
       )}
+
+      {incomingTiles.map((t) => (
+        <motion.div
+          key={`${t.row}-${t.col}`}
+          className="incoming-tile-fly"
+          style={{ width: t.size, height: t.size }}
+          initial={{ x: t.x0, y: t.y0, rotate: t.tilt, scale: 0.7, opacity: 0.85 }}
+          animate={{ x: t.x1, y: t.y1, rotate: 0, scale: 1, opacity: 1 }}
+          transition={{ duration: INCOMING_FLIGHT_MS / 1000, delay: t.delayMs / 1000, ease: [0.34, 1.56, 0.64, 1] }}
+        >
+          <Tile letter={t.letter} blank={t.blank} board />
+        </motion.div>
+      ))}
     </div>
   );
 }
