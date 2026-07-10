@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { motion } from "motion/react";
 import { useNavigate, useParams } from "react-router-dom";
+import { wordCellsForCommittedPlacement } from "@wordplay/shared";
 import { ApiError } from "../api";
 import { cellAt, checkPlacement, checkPlacementWithDictionary, isEmpty } from "../engine";
 import { useDictionary } from "../dictionary";
 import { moveItem, rackColumnAt } from "../dragMath";
 import { useApi, useProfile } from "../profile";
 import { useGamesShape, useMovesShape, useRacksShape } from "../shapes";
-import type { Game, PendingTile, PlacedTileDto } from "../types";
+import type { Game, Move, PendingTile, PlacedTileDto } from "../types";
 import { outlineEdges } from "../wordOutline";
 import { summarizeLastMove } from "../lastMove";
 import { Board } from "../components/Board";
@@ -42,6 +44,106 @@ const JUST_PLAYED_FALLBACK_MS = 5000;
  * (which, unlike the tiles, has no synced-data race to wait out: it's a
  * purely local/cosmetic fade, so a fixed timer is enough). */
 const FILL_FADE_MS = 400;
+
+/** How long one opponent tile takes to fly in from the score bar to its
+ * board cell (see startIncomingMove). Kept as a single fixed-duration tween
+ * (not a spring) so its end time is deterministic -- the reveal timeout
+ * below fires exactly when the flight's own transition finishes, handing
+ * off to the real committed tile with no gap or double-render. */
+const INCOMING_FLIGHT_MS = 320;
+/** Delay between successive opponent tiles starting their flight, so a
+ * multi-letter play reads as being laid down one tile after another rather
+ * than all arriving at once. */
+const INCOMING_STAGGER_MS = 110;
+/** How long the opponent's post-landing yellow highlight stays fully solid
+ * before it starts fading. */
+const INCOMING_HIGHLIGHT_HOLD_MS = 2200;
+/** Duration of the yellow highlight's own fade-out, once triggered -- much
+ * slower than the green fade (FILL_FADE_MS-ish) since this one is meant to
+ * read as "gradually" dissolving rather than a quick undraw. */
+const INCOMING_HIGHLIGHT_FADE_MS = 900;
+/** Ceiling on how many animation frames the incoming-move effect will wait
+ * for BoardViewport's board to settle into its final laid-out size (see its
+ * `size` state, which starts at 0 and is set asynchronously by a
+ * ResizeObserver) before measuring cell positions anyway -- bounds the wait
+ * rather than blocking forever if the board somehow never reports a stable
+ * size. */
+const INCOMING_LAYOUT_WAIT_FRAMES = 45;
+/** A `.board` width below this is treated as a transient/collapsed layout
+ * pass rather than the real thing -- comfortably smaller than any board
+ * will realistically render at, but well above the few-px slivers a
+ * mid-layout frame can transiently report. */
+const INCOMING_LAYOUT_MIN_WIDTH = 100;
+
+interface IncomingFlight {
+  hidden: Set<string>;
+  flying: {
+    row: number;
+    col: number;
+    letter: string;
+    blank: boolean;
+    x0: number;
+    y0: number;
+    x1: number;
+    y1: number;
+    size: number;
+    delayMs: number;
+    tilt: number;
+  }[];
+  highlightCells: Set<string>;
+}
+
+/** Pure DOM-measurement step for the incoming-move animation: where each
+ * opponent tile should fly from (the score bar) and to (its board cell),
+ * and which cells the eventual yellow highlight covers. Split out from the
+ * effect that calls it so the effect can freely retry it once layout is
+ * actually ready (see INCOMING_LAYOUT_WAIT_FRAMES) without duplicating this
+ * measurement logic. */
+function computeIncomingFlight(board: string, tiles: PlacedTileDto[]): IncomingFlight {
+  const words = wordCellsForCommittedPlacement(board, tiles);
+  const highlightCells = new Set<string>();
+  for (const w of words) for (const c of w.cells) highlightCells.add(`${c.row},${c.col}`);
+
+  const asPending: PendingTile[] = tiles.map((t, i) => ({
+    row: t.row,
+    col: t.col,
+    rackIndex: i,
+    letter: t.letter,
+    blank: t.blank,
+  }));
+  const horizontal = playedHorizontally(asPending);
+  const ordered = orderCellsForCascade(tiles, horizontal);
+
+  const scoreEl = document.querySelector<HTMLElement>(".scorebar-player:last-child .player-score");
+  const scoreRect = scoreEl?.getBoundingClientRect();
+  const origin = scoreRect
+    ? { x: scoreRect.left + scoreRect.width / 2, y: scoreRect.top + scoreRect.height / 2 }
+    : { x: window.innerWidth - 40, y: 72 };
+
+  const hidden = new Set<string>();
+  const flying = ordered.map((t, i) => {
+    const key = `${t.row},${t.col}`;
+    hidden.add(key);
+    const cellEl = document.querySelector<HTMLElement>(`[data-board-row="${t.row}"][data-board-col="${t.col}"]`);
+    const rect = cellEl?.getBoundingClientRect();
+    const size = rect?.width || 32;
+    return {
+      row: t.row,
+      col: t.col,
+      letter: t.letter,
+      blank: t.blank,
+      x0: origin.x - size / 2,
+      y0: origin.y - size / 2,
+      x1: rect?.left ?? origin.x - size / 2,
+      y1: rect?.top ?? origin.y - size / 2,
+      size,
+      delayMs: i * INCOMING_STAGGER_MS,
+      tilt: (i % 2 === 0 ? -1 : 1) * (12 + (i % 3) * 5),
+    };
+  });
+
+  return { hidden, flying, highlightCells };
+}
 
 /** True if a just-submitted move's tiles read left-to-right (a single tile
  * counts as horizontal, arbitrarily -- there's no direction to detect). */
@@ -81,6 +183,13 @@ export function GameScreen() {
     () => summarizeLastMove(moves ?? [], profile.id),
     [moves, profile.id],
   );
+  // The full record of the most recent move (unlike `lastMove` above, which
+  // is just the display summary) -- needed for its `tiles` to drive the
+  // incoming-move flight animation below.
+  const lastMoveRecord = useMemo<Move | undefined>(() => {
+    if (!moves || moves.length === 0) return undefined;
+    return moves.reduce((a, b) => (b.move_number > a.move_number ? b : a));
+  }, [moves]);
 
   const [pending, setPending] = useState<PendingTile[]>([]);
   const [order, setOrder] = useState<number[]>([]);
@@ -93,6 +202,14 @@ export function GameScreen() {
   // and Board's justPlayedFill prop. Keyed by `${row},${col}` -> delayMs.
   const [justPlayedFill, setJustPlayedFill] = useState<Map<string, number>>(new Map());
   const justPlayedFillTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Opponent tiles currently flying in from the score bar to their board
+  // cell, and the cells they're headed for (which Board renders as empty
+  // until each tile's flight lands) -- see the incoming-move effect below.
+  const [incomingTiles, setIncomingTiles] = useState<IncomingFlight["flying"]>([]);
+  const [incomingHidden, setIncomingHidden] = useState<Set<string>>(new Set());
+  // The opponent's just-landed word, highlighted yellow once every tile has
+  // landed -- see Board's opponentHighlight prop.
+  const [opponentHighlight, setOpponentHighlight] = useState<{ cells: Set<string>; fading: boolean } | null>(null);
   const [blankFor, setBlankFor] = useState<{ row: number; col: number; rackIndex: number } | null>(null);
   const [swapOpen, setSwapOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
@@ -125,6 +242,114 @@ export function GameScreen() {
       if (justPlayedFillTimeoutRef.current) clearTimeout(justPlayedFillTimeoutRef.current);
     };
   }, []);
+
+  // Plays the fly-in-and-highlight animation for the opponent's most recent
+  // move -- both the instant it arrives live, and (per the feature's other
+  // half) the first time this screen mounts onto a game where the opponent's
+  // last move was already sitting there unseen.
+  //
+  // Depends on lastMoveRecord's *id* (a stable primitive), not the object
+  // itself -- moves/games re-render with new object references on every
+  // Electric sync tick even when nothing relevant changed, which would
+  // otherwise re-fire this on totally unrelated updates.
+  //
+  // Fully self-contained (measures, schedules, and tears down within one
+  // effect instance) rather than relying on a ref to remember "already
+  // animated": React 18 StrictMode intentionally mounts every effect twice
+  // in dev (setup -> cleanup -> setup) to catch exactly this kind of bug,
+  // and a separate always-mounted cleanup effect canceling *this* effect's
+  // timeouts mid-flight was silently corrupting the animation on whichever
+  // mounts happened to have the moves shape already cached (hence "works on
+  // reload sometimes, not others"). Cleanup now undoes exactly what setup
+  // did, so the double-invoke is harmless and a genuine unmount mid-flight
+  // can't leave stuck flying tiles or a permanently-hidden board cell either.
+  useEffect(() => {
+    if (!game || !lastMoveRecord) return;
+    if (lastMoveRecord.user_id === profile.id) return;
+    if (lastMoveRecord.move_type !== "play" || !lastMoveRecord.tiles || lastMoveRecord.tiles.length === 0) return;
+
+    const tiles = lastMoveRecord.tiles;
+    const board = game.board;
+    let cancelled = false;
+    let rafId: number | null = null;
+    const timeouts: ReturnType<typeof setTimeout>[] = [];
+
+    // BoardViewport sizes itself via a ResizeObserver that only fires
+    // *after* mount (its `size` state starts at 0), so every board cell is
+    // still 0x0 -- and collapsed to one point -- for at least the first
+    // render or two, and its *first* delivered size can itself be a
+    // transient sliver (a few px) from an intermediate layout pass before
+    // the surrounding flex chrome (header/scorebar/rack) has settled into
+    // its final height, before growing to the real board size a frame or
+    // two later. Measuring during either of those windows flies every tile
+    // in from (and lands it on) that same collapsed/wrong point with no
+    // real cell size, which reads as tiles converging on the middle of the
+    // screen with no visible tile color. So wait not just for *a* width,
+    // but for the *same* width on two consecutive frames and comfortably
+    // larger than any transient sliver, i.e. actually settled.
+    function waitForBoardLayout(attempt: number, lastWidth: number) {
+      if (cancelled) return;
+      const width = document.querySelector(".board")?.getBoundingClientRect().width ?? 0;
+      if ((width > INCOMING_LAYOUT_MIN_WIDTH && width === lastWidth) || attempt >= INCOMING_LAYOUT_WAIT_FRAMES) {
+        start();
+        return;
+      }
+      rafId = requestAnimationFrame(() => waitForBoardLayout(attempt + 1, width));
+    }
+
+    function start() {
+      if (cancelled) return;
+      const { hidden, flying, highlightCells } = computeIncomingFlight(board, tiles);
+      setIncomingHidden(hidden);
+      setIncomingTiles(flying);
+      setOpponentHighlight(null);
+
+      for (const t of flying) {
+        timeouts.push(
+          setTimeout(() => {
+            if (cancelled) return;
+            setIncomingHidden((prev) => {
+              const next = new Set(prev);
+              next.delete(`${t.row},${t.col}`);
+              return next;
+            });
+            setIncomingTiles((prev) => prev.filter((f) => f.row !== t.row || f.col !== t.col));
+          }, t.delayMs + INCOMING_FLIGHT_MS),
+        );
+      }
+
+      const totalFlightMs =
+        flying.length === 0 ? 0 : (flying.length - 1) * INCOMING_STAGGER_MS + INCOMING_FLIGHT_MS;
+      timeouts.push(
+        setTimeout(() => {
+          if (cancelled) return;
+          setOpponentHighlight({ cells: highlightCells, fading: false });
+          timeouts.push(
+            setTimeout(() => {
+              if (cancelled) return;
+              setOpponentHighlight((prev) => (prev ? { ...prev, fading: true } : prev));
+              timeouts.push(
+                setTimeout(() => {
+                  if (!cancelled) setOpponentHighlight(null);
+                }, INCOMING_HIGHLIGHT_FADE_MS),
+              );
+            }, INCOMING_HIGHLIGHT_HOLD_MS),
+          );
+        }, totalFlightMs),
+      );
+    }
+
+    waitForBoardLayout(0, -1);
+
+    return () => {
+      cancelled = true;
+      if (rafId !== null) cancelAnimationFrame(rafId);
+      timeouts.forEach(clearTimeout);
+      setIncomingTiles([]);
+      setIncomingHidden(new Set());
+      setOpponentHighlight(null);
+    };
+  }, [lastMoveRecord?.id, game?.board, profile.id]);
 
   // Drops the just-played snapshot as soon as the synced board actually
   // reflects it -- the cascade's own CSS transition-delay/duration already
@@ -557,6 +782,8 @@ export function GameScreen() {
             scoreBadge={scoreBadge}
             justPlayed={justPlayed}
             justPlayedFill={justPlayedFill}
+            hiddenCells={incomingHidden}
+            opponentHighlight={opponentHighlight}
             interactive={!finished}
             onCellClick={removePendingTile}
             dropTarget={dropTarget?.type === "board" ? dropTarget : null}
@@ -677,6 +904,19 @@ export function GameScreen() {
           <Tile letter={dragActive.letter} blank={dragActive.blank} />
         </div>
       )}
+
+      {incomingTiles.map((t) => (
+        <motion.div
+          key={`${t.row}-${t.col}`}
+          className="incoming-tile-fly"
+          style={{ width: t.size, height: t.size }}
+          initial={{ x: t.x0, y: t.y0, rotate: t.tilt, scale: 0.7, opacity: 0.85 }}
+          animate={{ x: t.x1, y: t.y1, rotate: 0, scale: 1, opacity: 1 }}
+          transition={{ duration: INCOMING_FLIGHT_MS / 1000, delay: t.delayMs / 1000, ease: [0.34, 1.56, 0.64, 1] }}
+        >
+          <Tile letter={t.letter} blank={t.blank} board />
+        </motion.div>
+      ))}
     </div>
   );
 }

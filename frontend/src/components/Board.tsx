@@ -35,6 +35,18 @@ interface BoardProps {
    * dictionary-valid, dark blue (still showing the potential score) while
    * it isn't. */
   scoreBadge?: { row: number; col: number; score: number; valid: boolean } | null;
+  /** Cells (`${row},${col}`) whose already-committed letter should render as
+   * empty for now, even though the synced board data already has it -- used
+   * while an opponent's just-landed move is still flying in from the score
+   * bar, so the destination cell doesn't "pop" full before the flying tile
+   * visually arrives (see GameScreen's incoming-move animation). */
+  hiddenCells?: Set<string>;
+  /** The opponent's just-landed move's word outline, shown in the same
+   * fill-bleed style as wordEdges/justPlayedFill but yellow, held solid for
+   * a few seconds and then faded -- see GameScreen's incoming-move
+   * animation. `fading` flips true once the hold elapses to trigger the
+   * opacity transition down to 0. */
+  opponentHighlight?: { cells: Set<string>; fading: boolean } | null;
   onTileDragStart?: (row: number, col: number, clientX: number, clientY: number, rect: DOMRect) => void;
   onTileDragMove?: (clientX: number, clientY: number) => void;
   onTileDragEnd?: (clientX: number, clientY: number) => void;
@@ -123,6 +135,8 @@ export function Board({
   scoreBadge,
   justPlayed,
   justPlayedFill,
+  hiddenCells,
+  opponentHighlight,
   onTileDragStart,
   onTileDragMove,
   onTileDragEnd,
@@ -130,6 +144,21 @@ export function Board({
 }: BoardProps) {
   const pendingAt = new Map(pending.map((t) => [`${t.row},${t.col}`, t]));
   const justPlayedAt = new Map((justPlayed ?? []).map((t) => [`${t.row},${t.col}`, t]));
+
+  // Cells still mid-flight-in from the score bar read as empty here, even
+  // though the synced board string already has the letter -- see
+  // hiddenCells's doc.
+  const displayBoard =
+    hiddenCells && hiddenCells.size > 0
+      ? (() => {
+          const cells = board.split("");
+          for (const key of hiddenCells) {
+            const [r, c] = key.split(",").map(Number);
+            cells[r * N + c] = ".";
+          }
+          return cells.join("");
+        })()
+      : board;
 
   // Pointer handling lives on the stable `.board` container rather than on
   // individual cells, same reasoning as Rack: it's immune to any future
@@ -210,14 +239,14 @@ export function Board({
   function hasContent(row: number, col: number) {
     if (row < 0 || row >= N || col < 0 || col >= N) return false;
     const key = `${row},${col}`;
-    return cellAt(board, row, col) !== "." || pendingAt.has(key) || justPlayedAt.has(key);
+    return cellAt(displayBoard, row, col) !== "." || pendingAt.has(key) || justPlayedAt.has(key);
   }
 
   const cells = [];
   for (let row = 0; row < N; row++) {
     for (let col = 0; col < N; col++) {
       const key = `${row},${col}`;
-      const committed = cellAt(board, row, col);
+      const committed = cellAt(displayBoard, row, col);
       const pend = pendingAt.get(key);
       const justPlayedTile = justPlayedAt.get(key);
       const prem = premium(row, col);
@@ -240,7 +269,10 @@ export function Board({
         // so the fill's bleed paints the enclosing divider over its edge (see
         // TILE_BLEED_STYLE_UNDER_FILL). Play tiles -- every pending tile, and
         // committed anchors that ARE in a formed word -- stay above the fill.
-        const underFill = !pend && !!wordEdges && !wordEdges.has(key);
+        // The same applies to the opponent's yellow post-landing highlight,
+        // so its own anchor tiles get the same enclosing-divider treatment.
+        const inHighlightGroup = wordEdges ? wordEdges.has(key) : !!opponentHighlight?.cells.has(key);
+        const underFill = !pend && !!(wordEdges || opponentHighlight) && !inHighlightGroup;
         const bleedStyle = underFill ? TILE_BLEED_STYLE_UNDER_FILL : TILE_BLEED_STYLE;
         content = pend ? (
           <Tile
@@ -273,13 +305,24 @@ export function Board({
 
       // Green highlight fill behind the in-progress (valid) pending word --
       // or, once that word has just been submitted, the same fill fading out
-      // (see justPlayedFill's doc).
+      // (see justPlayedFill's doc) -- or, once an opponent's move has just
+      // landed, the same fill in yellow, held solid and then faded (see
+      // opponentHighlight's doc).
       const fillFadeDelay = justPlayedFill?.get(key);
+      const oppHighlighted = opponentHighlight?.cells.has(key) ?? false;
       const fill = wordEdge
         ? { style: fillStyle("var(--word-fill)") }
         : fillFadeDelay !== undefined
           ? { style: { ...fillStyle("var(--word-fill)"), opacity: 0, transitionDelay: `${fillFadeDelay}ms` } }
-          : null;
+          : oppHighlighted
+            ? {
+                style: {
+                  ...fillStyle("var(--word-fill-highlight)"),
+                  opacity: opponentHighlight!.fading ? 0 : 1,
+                  transitionDuration: "900ms",
+                },
+              }
+            : null;
 
       const badge =
         scoreBadge && scoreBadge.row === row && scoreBadge.col === col ? (
