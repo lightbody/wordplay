@@ -61,17 +61,24 @@ function fillStyle(background: string): React.CSSProperties {
 
 // How far (px) every board tile bleeds past its own cell, on all four sides
 // *uniformly*. The board's grid gap is 2px, so two adjacent tiles each
-// bleeding 1.5px overlap by 1px past the gap's center -- guaranteeing a
-// continuous fill with no sliver at any zoom. Crucially the bleed is uniform
-// (not per-neighbor): if a tile only bled toward sides that *have* a
-// neighbor, a tile with a letter above it (e.g. a cross-word junction) would
-// grow taller/wider than its in-row siblings that don't, so their faces
-// would no longer line up -- the exact "this tile sits higher / sticks out
-// to the left" misalignment we're avoiding. Bleeding every side equally
-// keeps every tile face on the same grid lines; the only cost is that an
-// outer edge pokes ~1.5px into the gap toward an empty cell, which just
-// reads as the played word being one slightly-raised capsule.
-const TILE_BLEED = 1.5;
+// bleeding past the gap's center guarantee a continuous fill with no sliver
+// -- in principle 1.5px on each side (overlapping the 2px gap by 1px) is
+// enough, but on iOS Safari each tile is independently promoted to its own
+// compositing layer (every Tile is a motion.button animating opacity, see
+// Tile.tsx), and adjacent layers' edges can snap to slightly different
+// subpixel boundaries -- a real hairline gap even though the CSS boxes
+// mathematically overlap. 3px leaves several px of slack for that per-layer
+// rounding instead of the bare ~1px 1.5 left, at the cost of tiles poking
+// slightly further (~3px) into the gap toward an empty cell (see below).
+// Crucially the bleed is uniform (not per-neighbor): if a tile only bled
+// toward sides that *have* a neighbor, a tile with a letter above it (e.g. a
+// cross-word junction) would grow taller/wider than its in-row siblings that
+// don't, so their faces would no longer line up -- the exact "this tile sits
+// higher / sticks out to the left" misalignment we're avoiding. Bleeding
+// every side equally keeps every tile face on the same grid lines; the only
+// cost is that an outer edge pokes into the gap toward an empty cell, which
+// just reads as the played word being one slightly-raised capsule.
+const TILE_BLEED = 3;
 
 const TILE_BLEED_STYLE: React.CSSProperties = {
   position: "absolute",
