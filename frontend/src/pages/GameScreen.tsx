@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { ApiError } from "../api";
-import { checkPlacement, checkPlacementWithDictionary, isEmpty } from "../engine";
+import { cellAt, checkPlacement, checkPlacementWithDictionary, isEmpty } from "../engine";
 import { useDictionary } from "../dictionary";
 import { moveItem, rackColumnAt } from "../dragMath";
 import { useApi, useProfile } from "../profile";
@@ -26,6 +26,37 @@ type DropTarget = { type: "board"; row: number; col: number; valid: boolean } | 
 
 /** Where a tile currently being dragged came from. */
 type DragSource = { kind: "rack"; rackIndex: number } | { kind: "board"; rackIndex: number; row: number; col: number };
+
+/** Milliseconds between each played letter's dark-to-light transition start
+ * (and, for the word-highlight fill, between each cell's fade-out start), so
+ * a multi-letter play visibly cascades rather than recoloring/vanishing all
+ * at once. */
+const PLAY_CASCADE_STAGGER_MS = 90;
+/** Ceiling on how long we keep showing the just-played tile snapshot if the
+ * synced `game.board` never catches up to it (should not happen in
+ * practice -- just a safety net against a stuck stale style). Normal
+ * cleanup is driven by the board-sync effect below, not this timer. */
+const JUST_PLAYED_FALLBACK_MS = 5000;
+/** Must comfortably exceed .cell-fill's opacity transition duration in
+ * App.css -- sizes the cleanup timeout for the word-highlight fade below
+ * (which, unlike the tiles, has no synced-data race to wait out: it's a
+ * purely local/cosmetic fade, so a fixed timer is enough). */
+const FILL_FADE_MS = 400;
+
+/** True if a just-submitted move's tiles read left-to-right (a single tile
+ * counts as horizontal, arbitrarily -- there's no direction to detect). */
+function playedHorizontally(tiles: PendingTile[]): boolean {
+  return tiles.length <= 1 || tiles.every((t) => t.row === tiles[0].row);
+}
+
+/** Orders a just-submitted move's cells for the cascade animation:
+ * left-to-right for a horizontal play, top-to-bottom for a vertical one.
+ * Shared by the tile color cascade (over just the newly-placed tiles) and
+ * the word-highlight fade (over the whole word shape, including any
+ * pre-existing anchor tiles it hooks onto). */
+function orderCellsForCascade<T extends { row: number; col: number }>(cells: T[], horizontal: boolean): T[] {
+  return [...cells].sort((a, b) => (horizontal ? a.col - b.col || a.row - b.row : a.row - b.row || a.col - b.col));
+}
 
 export function GameScreen() {
   const { id } = useParams<{ id: string }>();
@@ -53,6 +84,15 @@ export function GameScreen() {
 
   const [pending, setPending] = useState<PendingTile[]>([]);
   const [order, setOrder] = useState<number[]>([]);
+  // Tiles from the move just submitted, still mid-transition from the dark
+  // "placing" shade to the lighter "committed" one -- see submitPlay and
+  // Board's justPlayed prop.
+  const [justPlayed, setJustPlayed] = useState<{ row: number; col: number; letter: string; blank: boolean; delayMs: number }[]>([]);
+  const justPlayedTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // The just-submitted word's green highlight, fading out -- see submitPlay
+  // and Board's justPlayedFill prop. Keyed by `${row},${col}` -> delayMs.
+  const [justPlayedFill, setJustPlayedFill] = useState<Map<string, number>>(new Map());
+  const justPlayedFillTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [blankFor, setBlankFor] = useState<{ row: number; col: number; rackIndex: number } | null>(null);
   const [swapOpen, setSwapOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
@@ -78,6 +118,31 @@ export function GameScreen() {
     setPending([]);
     setOrder(Array.from({ length: myRack.length }, (_, i) => i));
   }, [myRack]);
+
+  useEffect(() => {
+    return () => {
+      if (justPlayedTimeoutRef.current) clearTimeout(justPlayedTimeoutRef.current);
+      if (justPlayedFillTimeoutRef.current) clearTimeout(justPlayedFillTimeoutRef.current);
+    };
+  }, []);
+
+  // Drops the just-played snapshot as soon as the synced board actually
+  // reflects it -- the cascade's own CSS transition-delay/duration already
+  // finished painting by then (or is still finishing, which is unaffected by
+  // this cleanup; see Board.tsx's justPlayed doc), so this is purely about
+  // not clearing the fallback-letter rendering *before* the real board data
+  // arrives, which would otherwise reopen the gap-flash this feature exists
+  // to close.
+  useEffect(() => {
+    if (justPlayed.length === 0 || !game) return;
+    const synced = justPlayed.every((t) => {
+      const ch = cellAt(game.board, t.row, t.col);
+      return ch === (t.blank ? t.letter.toLowerCase() : t.letter.toUpperCase());
+    });
+    if (!synced) return;
+    if (justPlayedTimeoutRef.current) clearTimeout(justPlayedTimeoutRef.current);
+    setJustPlayed([]);
+  }, [game?.board]);
 
   // Tiles can be planned on the board while waiting for the opponent to
   // move (see placement/interactive below, which no longer require
@@ -405,6 +470,32 @@ export function GameScreen() {
         blank: p.blank,
       }));
       const res = await api.play(id!, tiles);
+      const horizontal = playedHorizontally(pending);
+      const ordered = orderCellsForCascade(pending, horizontal);
+      if (justPlayedTimeoutRef.current) clearTimeout(justPlayedTimeoutRef.current);
+      setJustPlayed(
+        ordered.map((t, i) => ({
+          row: t.row,
+          col: t.col,
+          letter: t.letter,
+          blank: t.blank,
+          delayMs: i * PLAY_CASCADE_STAGGER_MS,
+        })),
+      );
+      justPlayedTimeoutRef.current = setTimeout(() => setJustPlayed([]), JUST_PLAYED_FALLBACK_MS);
+
+      // Fade the green word-highlight out in the same left-to-right/top-to-
+      // bottom order the tiles cascade in, over the whole word shape
+      // (including any pre-existing anchor tile it hooks onto) -- see
+      // Board's justPlayedFill doc.
+      const fillCells = orderCellsForCascade(placement.valid ? placement.wordCells : pending, horizontal);
+      if (justPlayedFillTimeoutRef.current) clearTimeout(justPlayedFillTimeoutRef.current);
+      setJustPlayedFill(new Map(fillCells.map((c, i) => [`${c.row},${c.col}`, i * PLAY_CASCADE_STAGGER_MS])));
+      justPlayedFillTimeoutRef.current = setTimeout(
+        () => setJustPlayedFill(new Map()),
+        fillCells.length * PLAY_CASCADE_STAGGER_MS + FILL_FADE_MS,
+      );
+
       setPending([]);
       if (res.game_over) navigate(`/games/${id}/summary`);
     } catch (e) {
@@ -464,6 +555,8 @@ export function GameScreen() {
             pending={pending}
             wordEdges={wordEdges}
             scoreBadge={scoreBadge}
+            justPlayed={justPlayed}
+            justPlayedFill={justPlayedFill}
             interactive={!finished}
             onCellClick={removePendingTile}
             dropTarget={dropTarget?.type === "board" ? dropTarget : null}

@@ -820,6 +820,12 @@ textarea {
 .cell-fill {
   position: absolute;
   z-index: 1;
+  /* Lets the just-submitted word's highlight dissolve away (see Board.tsx's
+   * justPlayedFill) instead of vanishing the instant the move is submitted.
+   * A `transition-delay` set inline per cell staggers this the same way as
+   * the tiles' own dark-to-light cascade, so the frame "undraws" in the same
+   * left-to-right/top-to-bottom order the letters were played in. */
+  transition: opacity 240ms ease;
 }
 .cell-drop-valid {
   box-shadow: inset 0 0 0 2px #16a34a;
@@ -849,6 +855,11 @@ textarea {
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
   padding: 0;
   touch-action: none;
+  /* Lets a played tile cross-fade from the dark "placing" shade to the
+   * lighter "committed" one (see Board.tsx's justPlayed) instead of the two
+   * classes swapping instantly. A `transition-delay` set inline per tile
+   * staggers this so a multi-letter play cascades one letter at a time. */
+  transition: background-color 220ms ease;
 }
 .tile:disabled {
   cursor: default;

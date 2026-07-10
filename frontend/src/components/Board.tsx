@@ -15,6 +15,21 @@ interface BoardProps {
   dropTarget?: { row: number; col: number; valid: boolean } | null;
   /** The pending tile currently being drag-picked-up off the board, if any. */
   draggingFrom?: { row: number; col: number } | null;
+  /** Tiles from the move just submitted, mid-transition from the dark
+   * "placing" shade to the lighter "committed" one. Rendered as board tiles
+   * (not draggable/interactive) so there's no gap between the pending tile
+   * disappearing and the synced board data reflecting it, and each carries a
+   * `delayMs` so the color transition cascades one letter at a time instead
+   * of changing all at once (see GameScreen's justPlayed state). */
+  justPlayed?: { row: number; col: number; letter: string; blank: boolean; delayMs: number }[];
+  /** Per-cell fade-out delay (ms) for the just-submitted word's green
+   * highlight, keyed by `${row},${col}`. Once a move is submitted, wordEdges
+   * goes back to undefined (no in-flight pending move to outline anymore),
+   * so without this the highlight would simply vanish; this keeps the same
+   * cells' fill mounted and fades it to opacity 0 with a stagger matching
+   * justPlayed's, so the green frame visibly "undraws" instead of snapping
+   * off (see GameScreen's justPlayedFill state). */
+  justPlayedFill?: Map<string, number>;
   /** Live provisional score for the in-flight pending move, shown as a badge
    * on the lowest/rightmost pending tile -- green once the placement is
    * dictionary-valid, dark blue (still showing the potential score) while
@@ -154,12 +169,15 @@ export function Board({
   dropTarget,
   draggingFrom,
   scoreBadge,
+  justPlayed,
+  justPlayedFill,
   onTileDragStart,
   onTileDragMove,
   onTileDragEnd,
   onTileDragCancel,
 }: BoardProps) {
   const pendingAt = new Map(pending.map((t) => [`${t.row},${t.col}`, t]));
+  const justPlayedAt = new Map((justPlayed ?? []).map((t) => [`${t.row},${t.col}`, t]));
 
   // Pointer handling lives on the stable `.board` container rather than on
   // individual cells, same reasoning as Rack: it's immune to any future
@@ -239,7 +257,8 @@ export function Board({
   // corners, regardless of which of the two a neighbor is.
   function hasContent(row: number, col: number) {
     if (row < 0 || row >= N || col < 0 || col >= N) return false;
-    return cellAt(board, row, col) !== "." || pendingAt.has(`${row},${col}`);
+    const key = `${row},${col}`;
+    return cellAt(board, row, col) !== "." || pendingAt.has(key) || justPlayedAt.has(key);
   }
 
   const cells = [];
@@ -248,6 +267,7 @@ export function Board({
       const key = `${row},${col}`;
       const committed = cellAt(board, row, col);
       const pend = pendingAt.get(key);
+      const justPlayedTile = justPlayedAt.get(key);
       const prem = premium(row, col);
       const isCenter = row === 7 && col === 7;
       const wordEdge = wordEdges?.get(key);
@@ -255,7 +275,7 @@ export function Board({
 
       let content = null;
       let tileFill = null;
-      if (pend || committed !== ".") {
+      if (pend || committed !== "." || justPlayedTile) {
         const left = hasContent(row, col - 1);
         const right = hasContent(row, col + 1);
         const top = hasContent(row - 1, col);
@@ -274,14 +294,21 @@ export function Board({
         // TILE_BLEED_STYLE_UNDER_FILL). Play tiles -- every pending tile, and
         // committed anchors that ARE in a formed word -- stay above the fill.
         const underFill = !pend && !!wordEdges && !wordEdges.has(key);
+        const bleedStyle = underFill ? TILE_BLEED_STYLE_UNDER_FILL : TILE_BLEED_STYLE;
         // Backing fill that actually closes the grid gap toward a same-run
         // neighbor -- see tileFillStyle's doc for why this (not TILE_BLEED)
         // is the real fix. Colored to match the tile it sits behind (pending
-        // tiles are the darker --tile-rack shade, not --tile-board). Matches
-        // its own tile's z-index (0 when underFill, so the green fill still
-        // paints over both together) rather than always sitting at the
-        // shared z-index:1 tier -- otherwise an underFill tile's letter
-        // would get hidden under its *own* backing fill.
+        // tiles are the darker --tile-rack shade; committed and just-played
+        // tiles are --tile-board -- a just-played tile's own cascade is a
+        // background-color transition on the tile itself, see App.css's
+        // .tile transition, so its backing fill just tracking the final
+        // color rather than also cascading is an intentional simplification,
+        // invisible outside the brief per-tile transition window since it
+        // only shows through the few-px seam sliver). Matches its own
+        // tile's z-index (0 when underFill, so the green fill still paints
+        // over both together) rather than always sitting at the shared
+        // z-index:1 tier -- otherwise an underFill tile's letter would get
+        // hidden under its *own* backing fill.
         tileFill = {
           style: {
             ...tileFillStyle(pend ? "var(--tile-rack)" : "var(--tile-board)", { left, right, top, bottom }),
@@ -301,19 +328,31 @@ export function Board({
           />
         ) : (
           <Tile
-            letter={committed}
-            blank={committed >= "a" && committed <= "z"}
+            // While the board sync catches up after a submit, fall back to
+            // the letter/blank we already know from the move we just sent --
+            // `committed` may still read "." for a beat.
+            letter={justPlayedTile ? justPlayedTile.letter : committed}
+            blank={justPlayedTile ? justPlayedTile.blank : committed >= "a" && committed <= "z"}
             board
             squareTL={squareTL}
             squareBR={squareBR}
             small
-            style={underFill ? TILE_BLEED_STYLE_UNDER_FILL : TILE_BLEED_STYLE}
+            style={
+              justPlayedTile ? { ...bleedStyle, transitionDelay: `${justPlayedTile.delayMs}ms` } : bleedStyle
+            }
           />
         );
       }
 
-      // Green highlight fill behind the in-progress (valid) pending word.
-      const fill = wordEdge ? { style: fillStyle("var(--word-fill)") } : null;
+      // Green highlight fill behind the in-progress (valid) pending word --
+      // or, once that word has just been submitted, the same fill fading out
+      // (see justPlayedFill's doc).
+      const fillFadeDelay = justPlayedFill?.get(key);
+      const fill = wordEdge
+        ? { style: fillStyle("var(--word-fill)") }
+        : fillFadeDelay !== undefined
+          ? { style: { ...fillStyle("var(--word-fill)"), opacity: 0, transitionDelay: `${fillFadeDelay}ms` } }
+          : null;
 
       const badge =
         scoreBadge && scoreBadge.row === row && scoreBadge.col === col ? (
