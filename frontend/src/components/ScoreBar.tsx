@@ -7,10 +7,12 @@ export function ScoreBar({
   game,
   meCreator,
   myTurn,
+  onOpenUnseenTiles,
 }: {
   game: Game;
   meCreator: boolean;
   myTurn: boolean;
+  onOpenUnseenTiles: () => void;
 }) {
   const me = {
     name: meCreator ? game.creator_username : game.opponent_username ?? "You",
@@ -24,7 +26,7 @@ export function ScoreBar({
   return (
     <div className="scorebar">
       <Player name={`@${me.name}`} score={me.score} active={myTurn} you />
-      <TilesLeft count={game.tiles_remaining} />
+      <TilesLeft count={game.tiles_remaining} onOpen={onOpenUnseenTiles} />
       <Player name={`@${them.name}`} score={them.score} active={!myTurn && game.status === "active"} />
     </div>
   );
@@ -53,14 +55,20 @@ function Player({ name, score, active, you }: { name: string; score: number; act
   );
 }
 
-function TilesLeft({ count }: { count: number }) {
+function TilesLeft({ count, onOpen }: { count: number; onOpen: () => void }) {
   const pct = Math.max(0, Math.min(100, Math.round((count / BAG_SIZE) * 100)));
   return (
-    <div className="tiles-ring" style={{ "--pct": pct } as React.CSSProperties}>
+    <button
+      type="button"
+      className="tiles-ring"
+      style={{ "--pct": pct } as React.CSSProperties}
+      onClick={onOpen}
+      aria-label="Show unseen tiles"
+    >
       <div className="tiles-ring-inner">
         <span className="tiles-ring-count">{count}</span>
         <span className="tiles-ring-label">left</span>
       </div>
-    </div>
+    </button>
   );
 }

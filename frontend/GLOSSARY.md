@@ -98,7 +98,8 @@ Top to bottom, the game screen (`.game-screen`) is laid out as:
   Each side is a **player chip** (`.scorebar-player`) with an avatar, `@username`, and score;
   the active (current-turn) player's chip is highlighted (`.scorebar-player.active`). Between
   the two player chips sits the **tiles-left ring** (`.tiles-ring`) — a circular progress
-  indicator (drawn down from `BAG_SIZE`) showing how many tiles remain in the bag.
+  indicator (drawn down from `BAG_SIZE`) showing how many tiles remain in the bag. Tapping it
+  opens the **unseen tiles** dialog (see Dialogs).
 - **Last-move summary** — see Game screen above.
 - **Badge** (`.badge` on game cards) — small status pill: "Your move", "Waiting", "Invite a
   player", "Draw", "You won"/"You lost".
@@ -109,7 +110,8 @@ The **action bar** (`.game-actions`, the row of buttons at the very bottom) cont
 phase. Every non-Play action renders as a compact **secondary action button** (`.action-btn`) — a
 small inline-SVG line icon (`components/icons.tsx`) over a caption-sized label, no border/fill
 until pressed — so the whole row stays on one line at any width:
-- **More** (`MoreIcon`, three dots) — opens the **more menu** dialog (Pass / Resign).
+- **More** (`MoreIcon`, three dots) — opens the **more menu** dialog (Unseen tiles / Pass /
+  Resign).
 - **Swap** (`SwapIcon`, offset up/down arrows) — opens the **swap dialog** to exchange rack
   tiles for new ones from the bag.
 - **Recall / Shuffle** — a single button that toggles meaning and icon: **Shuffle**
@@ -132,8 +134,14 @@ over a dimmed/blurred backdrop, with an optional title and an **actions row** of
 - **Swap dialog** (`SwapDialog.tsx`) — "Swap tiles": tap tiles in a static row (`.swap-rack`)
   to select 1–7 to exchange for random tiles from the bag; disabled with an explanatory message
   if the bag has fewer than 7 tiles left.
-- **More menu** (`MoreMenu.tsx`) — "More actions": Pass and Resign buttons
-  (`.modal-action-list`), each behind its own confirm() prompt.
+- **More menu** (`MoreMenu.tsx`) — "More actions": an Unseen tiles button, plus Pass and Resign
+  (`.modal-action-list`, the latter two each behind their own confirm() prompt).
+- **Unseen tiles** (`UnseenTiles.tsx`, `.unseen-tiles-grid`) — "Unseen tiles": every tile not on
+  the board and not in this player's own rack (could be in the bag or the opponent's rack),
+  grouped by letter as a blue board-style **tile** with a remaining count underneath. Computed
+  entirely client-side from `game.board` and the player's own rack (`unseenTiles.ts`) — never
+  shared with or computed by the opponent's client or the backend, since what's "unseen" differs
+  per player. Opened from the **more menu** or by tapping the **tiles-left ring**.
 - **Share panel** (`SharePanel.tsx`, `.share-panel`) — not a Dialog, but an inline card shown
   in place of the board during the *sharing* phase: a "Challenge by username" form and a
   "Share invite link" button (native share sheet, or copy-link with a **toast**).

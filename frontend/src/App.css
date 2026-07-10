@@ -1143,11 +1143,18 @@ textarea {
   flex-shrink: 0;
   width: 48px;
   height: 48px;
+  border: none;
+  padding: 0;
+  font: inherit;
+  cursor: pointer;
   border-radius: var(--radius-pill);
   display: flex;
   align-items: center;
   justify-content: center;
   background: conic-gradient(var(--accent-secondary) calc(var(--pct) * 1%), var(--bg-surface-sunken) 0);
+}
+.tiles-ring:active {
+  transform: scale(0.95);
 }
 .tiles-ring::before {
   content: "";
@@ -1285,6 +1292,31 @@ textarea {
   flex-direction: column;
   gap: 0.5rem;
   margin: 1rem 0;
+}
+.unseen-tiles-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  /* Grid items default to align-items: stretch, which would force each cell
+     (and the square Tile inside it) to the height of the tallest cell in its
+     row instead of sizing to its own tile + count-caption content. */
+  align-items: start;
+  gap: 0.75rem 0.4rem;
+  margin: 1rem 0;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+.unseen-tile-cell {
+  /* A grid track won't shrink below its content's intrinsic min-width by
+     default -- see the CSS gotcha in CLAUDE.md. */
+  min-width: 0;
+  text-align: center;
+}
+.unseen-tile-count {
+  display: block;
+  margin-top: 0.3rem;
+  font: var(--text-caption);
+  color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
 }
 
 /* --- summary --- */
