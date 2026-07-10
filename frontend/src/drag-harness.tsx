@@ -438,6 +438,19 @@ const SEAM_BOARD = (() => {
   place(6, 9, "U");
   place(8, 9, "T");
   place(9, 9, "Y");
+  // Second, denser cluster (reported as "notches...whenever they
+  // intersect" on a busier board than the 4-word GODS cluster above) --
+  // "MOONY" horizontal, "LO" down through the second O, "OX" down through
+  // the first O, "ME" down through the M. Several 3-of-4-neighbor corners
+  // with a genuinely empty diagonal cell, close together.
+  place(10, 2, "M");
+  place(10, 3, "O");
+  place(10, 4, "O");
+  place(10, 5, "N");
+  place(10, 6, "Y");
+  place(9, 4, "L");
+  place(11, 3, "X");
+  place(11, 2, "E");
   return cells.join("");
 })();
 

@@ -334,6 +334,7 @@ export function Board({
             letter={justPlayedTile ? justPlayedTile.letter : committed}
             blank={justPlayedTile ? justPlayedTile.blank : committed >= "a" && committed <= "z"}
             board
+            justPlayed={!!justPlayedTile}
             squareTL={squareTL}
             squareBR={squareBR}
             small
