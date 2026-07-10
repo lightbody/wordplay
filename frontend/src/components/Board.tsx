@@ -59,6 +59,38 @@ function fillStyle(background: string): React.CSSProperties {
   };
 }
 
+/** Style for a *tile-colored* backing fill behind one filled cell: the same
+ * z-index-1 mechanism as fillStyle above (a plain square, no rounding, sat
+ * behind the tiles), but bleeding only toward sides that actually have a
+ * same-run neighbor -- 0 toward a side that doesn't, so a word-end tile's
+ * rounded corner still reveals the true (non-tile) background there instead
+ * of getting silently backfilled with the tile's own color. This, not
+ * TILE_BLEED, is the real fix for the grid-gap seam: the 2px gap between
+ * cells shows the .board's own background, and only something that bleeds
+ * *past* that gap ever paints over it. TILE_BLEED tried to do that with two
+ * independent tiles each covering half the gap and meeting in the middle --
+ * confirmed insufficient on iOS Safari (widening it didn't remove the seam),
+ * most likely because each tile is an independent compositing layer whose
+ * edge can snap to a slightly different subpixel boundary than its
+ * neighbor's. A single backing rectangle spanning the whole gap (like the
+ * long-working green word-highlight fill above) removes the "two edges must
+ * meet exactly" requirement entirely -- whatever sliver of imprecision is
+ * left in the *tile's* own edge reveals more of this same-colored layer
+ * instead of the gap's true background. */
+function tileFillStyle(
+  background: string,
+  sides: { top: boolean; right: boolean; bottom: boolean; left: boolean },
+): React.CSSProperties {
+  return {
+    top: sides.top ? -FILL_MARGIN : 0,
+    right: sides.right ? -FILL_MARGIN : 0,
+    bottom: sides.bottom ? -FILL_MARGIN : 0,
+    left: sides.left ? -FILL_MARGIN : 0,
+    background,
+    borderRadius: 0,
+  };
+}
+
 // How far (px) every board tile bleeds past its own cell, on all four sides
 // *uniformly*. The board's grid gap is 2px, so two adjacent tiles each
 // bleeding past the gap's center guarantee a continuous fill with no sliver
@@ -222,21 +254,40 @@ export function Board({
       const isDropTarget = dropTarget?.row === row && dropTarget?.col === col;
 
       let content = null;
+      let tileFill = null;
       if (pend || committed !== ".") {
+        const left = hasContent(row, col - 1);
+        const right = hasContent(row, col + 1);
+        const top = hasContent(row - 1, col);
+        const bottom = hasContent(row + 1, col);
         // Squares the corner facing any flush neighbor -- pending or
         // committed, doesn't matter -- so a whole run of tiles (even a
         // brand-new placement touching an existing letter) reads as one
         // rounded capsule instead of each letter showing its own corner cut
         // (which would otherwise leave a tiny diamond-shaped gap at every
         // interior seam). See Tile's squareTL/squareBR doc.
-        const squareTL = hasContent(row, col - 1) || hasContent(row - 1, col);
-        const squareBR = hasContent(row, col + 1) || hasContent(row + 1, col);
+        const squareTL = left || top;
+        const squareBR = right || bottom;
         // A committed tile that a valid pending move exists but which is NOT
         // itself part of any word that move forms drops below the green fill,
         // so the fill's bleed paints the enclosing divider over its edge (see
         // TILE_BLEED_STYLE_UNDER_FILL). Play tiles -- every pending tile, and
         // committed anchors that ARE in a formed word -- stay above the fill.
         const underFill = !pend && !!wordEdges && !wordEdges.has(key);
+        // Backing fill that actually closes the grid gap toward a same-run
+        // neighbor -- see tileFillStyle's doc for why this (not TILE_BLEED)
+        // is the real fix. Colored to match the tile it sits behind (pending
+        // tiles are the darker --tile-rack shade, not --tile-board). Matches
+        // its own tile's z-index (0 when underFill, so the green fill still
+        // paints over both together) rather than always sitting at the
+        // shared z-index:1 tier -- otherwise an underFill tile's letter
+        // would get hidden under its *own* backing fill.
+        tileFill = {
+          style: {
+            ...tileFillStyle(pend ? "var(--tile-rack)" : "var(--tile-board)", { left, right, top, bottom }),
+            zIndex: underFill ? 0 : 1,
+          },
+        };
         content = pend ? (
           <Tile
             letter={pend.letter}
@@ -282,10 +333,6 @@ export function Board({
             prem ? `cell-${prem.toLowerCase()}` : "",
             isCenter ? "cell-center" : "",
             content ? "cell-filled" : "",
-            // Paints the cell's OWN background the same color as the tile
-            // sitting on it, in addition to (not instead of) the tile's own
-            // bleed -- see the --tile-fill-color comment in App.css for why.
-            pend ? "cell-filled-pending" : committed !== "." ? "cell-filled-board" : "",
             isDropTarget ? (dropTarget!.valid ? "cell-drop-valid" : "cell-drop-invalid") : "",
           ]
             .filter(Boolean)
@@ -293,6 +340,7 @@ export function Board({
           onClick={interactive ? () => onCellClick?.(row, col) : undefined}
           disabled={!interactive}
         >
+          {tileFill && <span className="cell-fill" style={tileFill.style} />}
           {fill && <span className="cell-fill" style={fill.style} />}
           {content ??
             (prem ? (
