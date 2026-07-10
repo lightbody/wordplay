@@ -98,6 +98,13 @@ function fillStyle(background: string): React.CSSProperties {
 // keeps every tile face on the same grid lines; the only cost is that an
 // outer edge pokes ~1.5px into the gap toward an empty cell, which just
 // reads as the played word being one slightly-raised capsule.
+//
+// The value badge's offsets (App.css's .tile-value) derive from the
+// --tile-bleed custom property below, so they track this value
+// automatically. More generally: anything drawn near a tile's edge must
+// stay clear of the outer (bleed - 2px gap) band on each side, since a
+// neighboring tile's own bleed can paint over it there (sibling tiles
+// share one z-index, so DOM order decides who wins).
 const TILE_BLEED = 1.5;
 
 const TILE_BLEED_STYLE: React.CSSProperties = {
@@ -106,6 +113,15 @@ const TILE_BLEED_STYLE: React.CSSProperties = {
   right: -TILE_BLEED,
   bottom: -TILE_BLEED,
   left: -TILE_BLEED,
+  // .tile-value (the score-letter badge) is corner-anchored via right/bottom
+  // offsets measured from *this* box -- which the bleed just grew past the
+  // cell's true edge. Without compensating, growing TILE_BLEED pushes the
+  // badge further into the gap each tile bleeds into, straight into the
+  // z-index-2 sibling tile bleeding the other way from across that gap
+  // (siblings share one z-index, so stacking is DOM order -- a later,
+  // overlapping tile paints over an earlier one's badge with no way for the
+  // badge to "win" via its own z-index). See App.css's --tile-bleed use.
+  ["--tile-bleed" as string]: `${TILE_BLEED}px`,
 };
 
 // Same bleed, but forced *below* the green move-fill (which is z-index 1;
@@ -293,6 +309,7 @@ export function Board({
             letter={justPlayedTile ? justPlayedTile.letter : committed}
             blank={justPlayedTile ? justPlayedTile.blank : committed >= "a" && committed <= "z"}
             board
+            justPlayed={!!justPlayedTile}
             squareTL={squareTL}
             squareBR={squareBR}
             small

@@ -28,6 +28,15 @@ interface TileProps {
    * (rack tiles -- placement is drag-only, dragging is handled by Rack's
    * own container-level pointer listeners, not by this button's onClick). */
   interactive?: boolean;
+  /** True for the brief window right after this tile was submitted, while
+   * it's cross-fading from the pending "placing" shade to the committed
+   * one (see Board.tsx's justPlayed). Keeps this tile on the `motion.button`
+   * path it was just on as a *pending* tile (see useMotion below) so the
+   * same DOM node carries through the pending -> just-played handoff and
+   * the CSS background-color transition has a previous value to animate
+   * from, instead of a fresh plain <button> that would just show the final
+   * color immediately. */
+  justPlayed?: boolean;
   onClick?: () => void;
 }
 
@@ -43,29 +52,58 @@ export function Tile({
   squareBR,
   style,
   interactive,
+  justPlayed,
   onClick,
 }: TileProps) {
   const value = blank ? 0 : letterValue(letter);
   const display = letter ? letter.toUpperCase() : "";
   const clickable = interactive || !!onClick;
+  const className = [
+    "tile",
+    board ? "tile-board" : "",
+    pending ? "tile-pending" : "",
+    selected ? "tile-selected" : "",
+    small ? "tile-small" : "",
+    squareTL ? "tile-square-tl" : "",
+    squareBR ? "tile-square-br" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+  const children = (
+    <>
+      <span className="tile-letter">{display || (blank ? "" : "")}</span>
+      {value > 0 && <span className="tile-value">{value}</span>}
+    </>
+  );
+
+  // Most board tiles are neither draggable, tappable, nor mid-animation --
+  // the vast majority of any real board is settled, non-interactive,
+  // already-committed tiles. Framer Motion promotes every `motion.*`
+  // element to its own compositing layer regardless of whether it's
+  // actually animating (readying it for any future prop change), which is
+  // wasted cost across a board that can have 100+ static tiles. A plain,
+  // unpromoted `<button>` skips that entirely. `pending`/`interactive`/
+  // `justPlayed` are exactly the cases that still need motion: drag-fade
+  // opacity, tap-feedback scale, and (for justPlayed) preserving DOM
+  // continuity from this tile's immediately prior pending self so the
+  // submit color-cascade has something to transition from.
+  const useMotion = pending || interactive || justPlayed;
+
+  if (!useMotion) {
+    return (
+      <button type="button" onClick={onClick} disabled={!clickable} style={style} className={className}>
+        {children}
+      </button>
+    );
+  }
+
   return (
     <motion.button
       type="button"
       onClick={onClick}
       disabled={!clickable}
       style={style}
-      className={[
-        "tile",
-        board ? "tile-board" : "",
-        pending ? "tile-pending" : "",
-        selected ? "tile-selected" : "",
-        small ? "tile-small" : "",
-        blank ? "tile-blank" : "",
-        squareTL ? "tile-square-tl" : "",
-        squareBR ? "tile-square-br" : "",
-      ]
-        .filter(Boolean)
-        .join(" ")}
+      className={className}
       // Driven through motion's own `animate` (rather than a CSS class)
       // because once whileTap puts a value under motion's control, it
       // asserts its own inline style for that value on every render --
@@ -82,8 +120,7 @@ export function Tile({
       whileTap={clickable ? { scale: 0.92 } : undefined}
       transition={{ type: "spring", stiffness: 500, damping: 30 }}
     >
-      <span className="tile-letter">{display || (blank ? "" : "")}</span>
-      {value > 0 && <span className="tile-value">{value}</span>}
+      {children}
     </motion.button>
   );
 }

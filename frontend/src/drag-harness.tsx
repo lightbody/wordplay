@@ -410,6 +410,64 @@ const ANCHOR_PENDING: PendingTile[] = [
   { row: 8, col: 7, rackIndex: 2, letter: "E", blank: false },
 ];
 
+// Rendering-regression fixture for a dense crossword: "GODS" horizontal
+// through "SOD" (down through the O), "GUSTY" (down through the S), and
+// "GAY" (down through the G), so O and S each have all four neighbors
+// filled. O and S are BLANKS (lowercase in the board string) -- any future
+// per-tile visual marker (blanks currently get none, see App.css) should be
+// checked against this fixture, since a marker anchored to a tile's bled
+// edge rather than pulled inside the cell can get partially painted over by
+// neighboring tiles at exactly this kind of multi-neighbor intersection.
+// All-committed, no pending/wordEdges highlighting (a past board state, not
+// an in-progress move).
+const SEAM_BOARD = (() => {
+  const cells = ".".repeat(N * N).split("");
+  const place = (row: number, col: number, letter: string) => {
+    cells[row * N + col] = letter;
+  };
+  // "GODS" horizontal -- the O and S are blanks (lowercase).
+  place(7, 6, "G");
+  place(7, 7, "o");
+  place(7, 8, "D");
+  place(7, 9, "s");
+  // "GAY" down through the G
+  place(8, 6, "A");
+  place(9, 6, "Y");
+  // "SOD" down through the O (S above, D below)
+  place(6, 7, "S");
+  place(8, 7, "D");
+  // "GUSTY" down through the S
+  place(5, 9, "G");
+  place(6, 9, "U");
+  place(8, 9, "T");
+  place(9, 9, "Y");
+  // Second, denser cluster -- "MOONY" horizontal, "LO" down through the
+  // second O, "OX" down through the first O, "ME" down through the M.
+  // Several 3-of-4-neighbor corners with a genuinely empty diagonal cell,
+  // close together.
+  place(10, 2, "M");
+  place(10, 3, "O");
+  place(10, 4, "O");
+  place(10, 5, "N");
+  place(10, 6, "Y");
+  place(9, 4, "L");
+  place(11, 3, "X");
+  place(11, 2, "E");
+  return cells.join("");
+})();
+
+function SeamHarness() {
+  return (
+    <div className="app-page game-screen" id="harness-root">
+      <div className="game-middle">
+        <BoardViewport>
+          <Board board={SEAM_BOARD} pending={[]} />
+        </BoardViewport>
+      </div>
+    </div>
+  );
+}
+
 function makeMockDictionary(rejectWord: string | null): Dictionary {
   return {
     isWord(word: string) {
@@ -503,6 +561,7 @@ const initialInvalid = params.get("dict") === "invalid";
 const scenarios: Record<string, JSX.Element> = {
   outline: <ScoreHarness board={OUTLINE_BOARD} pending={OUTLINE_PENDING} badWord="SIT" initialInvalid={initialInvalid} />,
   anchor: <ScoreHarness board={ANCHOR_BOARD} pending={ANCHOR_PENDING} badWord="MEEK" initialInvalid={initialInvalid} />,
+  seams: <SeamHarness />,
 };
 
 createRoot(document.getElementById("root")!).render(scenarios[scenario ?? ""] ?? <Harness />);
