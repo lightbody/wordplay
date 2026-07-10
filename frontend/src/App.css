@@ -910,10 +910,10 @@ textarea {
    * into the gap a same-z-index neighbor bleeds into from the other side,
    * and that neighbor (painted later in DOM order) crops it. See Board.tsx. */
   right: calc(2px + var(--tile-bleed, 0px));
-  /* 2px base (not 1px) so that even at the current TILE_BLEED (3px) this
-   * clears a same-row-below neighbor's bled edge by a full 1px, matching the
-   * right offset's margin -- see the --tile-bleed comment above. At 1px base
-   * the two exactly touched (0px margin) instead of clearing. */
+  /* 2px base (not 1px) so this clears a same-row-below neighbor's bled edge
+   * with margin to spare, matching the right offset's margin -- see the
+   * --tile-bleed comment above. At 1px base a large-enough TILE_BLEED would
+   * make the two exactly touch (0px margin) instead of clearing. */
   bottom: calc(2px + var(--tile-bleed, 0px));
   font-size: clamp(6px, 24cqw, 15px);
   font-weight: 600;
