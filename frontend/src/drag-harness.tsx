@@ -328,6 +328,49 @@ const ANCHOR_PENDING: PendingTile[] = [
   { row: 8, col: 7, rackIndex: 2, letter: "E", blank: false },
 ];
 
+// Regression fixture for the pale-blue hairline seam reported around
+// interior board tiles (those with content on 3-4 sides) -- reproduces the
+// exact crossword shape from the bug report: "GODS" horizontal through
+// "SOD" (down through the O), "GUSTY" (down through the S), and "GAY" (down
+// through the G), so the O and S cells each have all four neighbors filled.
+// All-committed, no pending/wordEdges highlighting, matching the screenshot
+// (a past board state, not an in-progress move).
+const SEAM_BOARD = (() => {
+  const cells = ".".repeat(N * N).split("");
+  const place = (row: number, col: number, letter: string) => {
+    cells[row * N + col] = letter;
+  };
+  // "GODS" horizontal
+  place(7, 6, "G");
+  place(7, 7, "O");
+  place(7, 8, "D");
+  place(7, 9, "S");
+  // "GAY" down through the G
+  place(8, 6, "A");
+  place(9, 6, "Y");
+  // "SOD" down through the O (S above, D below)
+  place(6, 7, "S");
+  place(8, 7, "D");
+  // "GUSTY" down through the S
+  place(5, 9, "G");
+  place(6, 9, "U");
+  place(8, 9, "T");
+  place(9, 9, "Y");
+  return cells.join("");
+})();
+
+function SeamHarness() {
+  return (
+    <div className="app-page game-screen" id="harness-root">
+      <div className="game-middle">
+        <BoardViewport>
+          <Board board={SEAM_BOARD} pending={[]} />
+        </BoardViewport>
+      </div>
+    </div>
+  );
+}
+
 function makeMockDictionary(rejectWord: string | null): Dictionary {
   return {
     isWord(word: string) {
@@ -421,6 +464,7 @@ const initialInvalid = params.get("dict") === "invalid";
 const scenarios: Record<string, JSX.Element> = {
   outline: <ScoreHarness board={OUTLINE_BOARD} pending={OUTLINE_PENDING} badWord="SIT" initialInvalid={initialInvalid} />,
   anchor: <ScoreHarness board={ANCHOR_BOARD} pending={ANCHOR_PENDING} badWord="MEEK" initialInvalid={initialInvalid} />,
+  seams: <SeamHarness />,
 };
 
 createRoot(document.getElementById("root")!).render(scenarios[scenario ?? ""] ?? <Harness />);
