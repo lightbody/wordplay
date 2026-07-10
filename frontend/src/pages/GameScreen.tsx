@@ -27,22 +27,35 @@ type DropTarget = { type: "board"; row: number; col: number; valid: boolean } | 
 /** Where a tile currently being dragged came from. */
 type DragSource = { kind: "rack"; rackIndex: number } | { kind: "board"; rackIndex: number; row: number; col: number };
 
-/** Milliseconds between each played letter's dark-to-light transition start,
- * so a multi-letter play visibly cascades rather than recoloring at once. */
+/** Milliseconds between each played letter's dark-to-light transition start
+ * (and, for the word-highlight fill, between each cell's fade-out start), so
+ * a multi-letter play visibly cascades rather than recoloring/vanishing all
+ * at once. */
 const PLAY_CASCADE_STAGGER_MS = 90;
-/** Ceiling on how long we keep showing the just-played snapshot if the
+/** Ceiling on how long we keep showing the just-played tile snapshot if the
  * synced `game.board` never catches up to it (should not happen in
  * practice -- just a safety net against a stuck stale style). Normal
  * cleanup is driven by the board-sync effect below, not this timer. */
 const JUST_PLAYED_FALLBACK_MS = 5000;
+/** Must comfortably exceed .cell-fill's opacity transition duration in
+ * App.css -- sizes the cleanup timeout for the word-highlight fade below
+ * (which, unlike the tiles, has no synced-data race to wait out: it's a
+ * purely local/cosmetic fade, so a fixed timer is enough). */
+const FILL_FADE_MS = 400;
 
-/** Orders the tiles of a just-submitted move for the cascade animation:
- * left-to-right for a horizontal play, top-to-bottom for a vertical one. A
- * single-tile play has no direction to order by. */
-function orderForCascade(tiles: PendingTile[]): PendingTile[] {
-  if (tiles.length <= 1) return tiles;
-  const horizontal = tiles.every((t) => t.row === tiles[0].row);
-  return [...tiles].sort((a, b) => (horizontal ? a.col - b.col : a.row - b.row));
+/** True if a just-submitted move's tiles read left-to-right (a single tile
+ * counts as horizontal, arbitrarily -- there's no direction to detect). */
+function playedHorizontally(tiles: PendingTile[]): boolean {
+  return tiles.length <= 1 || tiles.every((t) => t.row === tiles[0].row);
+}
+
+/** Orders a just-submitted move's cells for the cascade animation:
+ * left-to-right for a horizontal play, top-to-bottom for a vertical one.
+ * Shared by the tile color cascade (over just the newly-placed tiles) and
+ * the word-highlight fade (over the whole word shape, including any
+ * pre-existing anchor tiles it hooks onto). */
+function orderCellsForCascade<T extends { row: number; col: number }>(cells: T[], horizontal: boolean): T[] {
+  return [...cells].sort((a, b) => (horizontal ? a.col - b.col || a.row - b.row : a.row - b.row || a.col - b.col));
 }
 
 export function GameScreen() {
@@ -76,6 +89,10 @@ export function GameScreen() {
   // Board's justPlayed prop.
   const [justPlayed, setJustPlayed] = useState<{ row: number; col: number; letter: string; blank: boolean; delayMs: number }[]>([]);
   const justPlayedTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // The just-submitted word's green highlight, fading out -- see submitPlay
+  // and Board's justPlayedFill prop. Keyed by `${row},${col}` -> delayMs.
+  const [justPlayedFill, setJustPlayedFill] = useState<Map<string, number>>(new Map());
+  const justPlayedFillTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [blankFor, setBlankFor] = useState<{ row: number; col: number; rackIndex: number } | null>(null);
   const [swapOpen, setSwapOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
@@ -105,6 +122,7 @@ export function GameScreen() {
   useEffect(() => {
     return () => {
       if (justPlayedTimeoutRef.current) clearTimeout(justPlayedTimeoutRef.current);
+      if (justPlayedFillTimeoutRef.current) clearTimeout(justPlayedFillTimeoutRef.current);
     };
   }, []);
 
@@ -452,7 +470,8 @@ export function GameScreen() {
         blank: p.blank,
       }));
       const res = await api.play(id!, tiles);
-      const ordered = orderForCascade(pending);
+      const horizontal = playedHorizontally(pending);
+      const ordered = orderCellsForCascade(pending, horizontal);
       if (justPlayedTimeoutRef.current) clearTimeout(justPlayedTimeoutRef.current);
       setJustPlayed(
         ordered.map((t, i) => ({
@@ -464,6 +483,19 @@ export function GameScreen() {
         })),
       );
       justPlayedTimeoutRef.current = setTimeout(() => setJustPlayed([]), JUST_PLAYED_FALLBACK_MS);
+
+      // Fade the green word-highlight out in the same left-to-right/top-to-
+      // bottom order the tiles cascade in, over the whole word shape
+      // (including any pre-existing anchor tile it hooks onto) -- see
+      // Board's justPlayedFill doc.
+      const fillCells = orderCellsForCascade(placement.valid ? placement.wordCells : pending, horizontal);
+      if (justPlayedFillTimeoutRef.current) clearTimeout(justPlayedFillTimeoutRef.current);
+      setJustPlayedFill(new Map(fillCells.map((c, i) => [`${c.row},${c.col}`, i * PLAY_CASCADE_STAGGER_MS])));
+      justPlayedFillTimeoutRef.current = setTimeout(
+        () => setJustPlayedFill(new Map()),
+        fillCells.length * PLAY_CASCADE_STAGGER_MS + FILL_FADE_MS,
+      );
+
       setPending([]);
       if (res.game_over) navigate(`/games/${id}/summary`);
     } catch (e) {
@@ -524,6 +556,7 @@ export function GameScreen() {
             wordEdges={wordEdges}
             scoreBadge={scoreBadge}
             justPlayed={justPlayed}
+            justPlayedFill={justPlayedFill}
             interactive={!finished}
             onCellClick={removePendingTile}
             dropTarget={dropTarget?.type === "board" ? dropTarget : null}

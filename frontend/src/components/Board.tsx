@@ -22,6 +22,14 @@ interface BoardProps {
    * `delayMs` so the color transition cascades one letter at a time instead
    * of changing all at once (see GameScreen's justPlayed state). */
   justPlayed?: { row: number; col: number; letter: string; blank: boolean; delayMs: number }[];
+  /** Per-cell fade-out delay (ms) for the just-submitted word's green
+   * highlight, keyed by `${row},${col}`. Once a move is submitted, wordEdges
+   * goes back to undefined (no in-flight pending move to outline anymore),
+   * so without this the highlight would simply vanish; this keeps the same
+   * cells' fill mounted and fades it to opacity 0 with a stagger matching
+   * justPlayed's, so the green frame visibly "undraws" instead of snapping
+   * off (see GameScreen's justPlayedFill state). */
+  justPlayedFill?: Map<string, number>;
   /** Live provisional score for the in-flight pending move, shown as a badge
    * on the lowest/rightmost pending tile -- green once the placement is
    * dictionary-valid, dark blue (still showing the potential score) while
@@ -114,6 +122,7 @@ export function Board({
   draggingFrom,
   scoreBadge,
   justPlayed,
+  justPlayedFill,
   onTileDragStart,
   onTileDragMove,
   onTileDragEnd,
@@ -262,8 +271,15 @@ export function Board({
         );
       }
 
-      // Green highlight fill behind the in-progress (valid) pending word.
-      const fill = wordEdge ? { style: fillStyle("var(--word-fill)") } : null;
+      // Green highlight fill behind the in-progress (valid) pending word --
+      // or, once that word has just been submitted, the same fill fading out
+      // (see justPlayedFill's doc).
+      const fillFadeDelay = justPlayedFill?.get(key);
+      const fill = wordEdge
+        ? { style: fillStyle("var(--word-fill)") }
+        : fillFadeDelay !== undefined
+          ? { style: { ...fillStyle("var(--word-fill)"), opacity: 0, transitionDelay: `${fillFadeDelay}ms` } }
+          : null;
 
       const badge =
         scoreBadge && scoreBadge.row === row && scoreBadge.col === col ? (
