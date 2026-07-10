@@ -15,6 +15,13 @@ interface BoardProps {
   dropTarget?: { row: number; col: number; valid: boolean } | null;
   /** The pending tile currently being drag-picked-up off the board, if any. */
   draggingFrom?: { row: number; col: number } | null;
+  /** Tiles from the move just submitted, mid-transition from the dark
+   * "placing" shade to the lighter "committed" one. Rendered as board tiles
+   * (not draggable/interactive) so there's no gap between the pending tile
+   * disappearing and the synced board data reflecting it, and each carries a
+   * `delayMs` so the color transition cascades one letter at a time instead
+   * of changing all at once (see GameScreen's justPlayed state). */
+  justPlayed?: { row: number; col: number; letter: string; blank: boolean; delayMs: number }[];
   /** Live provisional score for the in-flight pending move, shown as a badge
    * on the lowest/rightmost pending tile -- green once the placement is
    * dictionary-valid, dark blue (still showing the potential score) while
@@ -106,12 +113,14 @@ export function Board({
   dropTarget,
   draggingFrom,
   scoreBadge,
+  justPlayed,
   onTileDragStart,
   onTileDragMove,
   onTileDragEnd,
   onTileDragCancel,
 }: BoardProps) {
   const pendingAt = new Map(pending.map((t) => [`${t.row},${t.col}`, t]));
+  const justPlayedAt = new Map((justPlayed ?? []).map((t) => [`${t.row},${t.col}`, t]));
 
   // Pointer handling lives on the stable `.board` container rather than on
   // individual cells, same reasoning as Rack: it's immune to any future
@@ -191,7 +200,8 @@ export function Board({
   // corners, regardless of which of the two a neighbor is.
   function hasContent(row: number, col: number) {
     if (row < 0 || row >= N || col < 0 || col >= N) return false;
-    return cellAt(board, row, col) !== "." || pendingAt.has(`${row},${col}`);
+    const key = `${row},${col}`;
+    return cellAt(board, row, col) !== "." || pendingAt.has(key) || justPlayedAt.has(key);
   }
 
   const cells = [];
@@ -200,13 +210,14 @@ export function Board({
       const key = `${row},${col}`;
       const committed = cellAt(board, row, col);
       const pend = pendingAt.get(key);
+      const justPlayedTile = justPlayedAt.get(key);
       const prem = premium(row, col);
       const isCenter = row === 7 && col === 7;
       const wordEdge = wordEdges?.get(key);
       const isDropTarget = dropTarget?.row === row && dropTarget?.col === col;
 
       let content = null;
-      if (pend || committed !== ".") {
+      if (pend || committed !== "." || justPlayedTile) {
         // Squares the corner facing any flush neighbor -- pending or
         // committed, doesn't matter -- so a whole run of tiles (even a
         // brand-new placement touching an existing letter) reads as one
@@ -221,6 +232,7 @@ export function Board({
         // TILE_BLEED_STYLE_UNDER_FILL). Play tiles -- every pending tile, and
         // committed anchors that ARE in a formed word -- stay above the fill.
         const underFill = !pend && !!wordEdges && !wordEdges.has(key);
+        const bleedStyle = underFill ? TILE_BLEED_STYLE_UNDER_FILL : TILE_BLEED_STYLE;
         content = pend ? (
           <Tile
             letter={pend.letter}
@@ -234,13 +246,18 @@ export function Board({
           />
         ) : (
           <Tile
-            letter={committed}
-            blank={committed >= "a" && committed <= "z"}
+            // While the board sync catches up after a submit, fall back to
+            // the letter/blank we already know from the move we just sent --
+            // `committed` may still read "." for a beat.
+            letter={justPlayedTile ? justPlayedTile.letter : committed}
+            blank={justPlayedTile ? justPlayedTile.blank : committed >= "a" && committed <= "z"}
             board
             squareTL={squareTL}
             squareBR={squareBR}
             small
-            style={underFill ? TILE_BLEED_STYLE_UNDER_FILL : TILE_BLEED_STYLE}
+            style={
+              justPlayedTile ? { ...bleedStyle, transitionDelay: `${justPlayedTile.delayMs}ms` } : bleedStyle
+            }
           />
         );
       }

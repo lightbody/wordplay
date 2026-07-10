@@ -12,7 +12,7 @@
 // reorder, drag a pending (not yet submitted) board tile back to the rack to
 // recall it or onto a different empty cell to reposition it. Tapping a
 // pending board tile still removes it, as a quick alternative to dragging.
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import type { Dictionary } from "@wordplay/shared";
 import { N, checkPlacement, checkPlacementWithDictionary, isEmpty } from "./engine";
@@ -31,10 +31,64 @@ type DragSource = { kind: "rack"; rackIndex: number } | { kind: "board"; rackInd
 
 const EMPTY_BOARD = ".".repeat(N * N);
 
+// Mirrors GameScreen's cascade constants/helper for the Play-button
+// simulation below (see submitPlay/orderForCascade in pages/GameScreen.tsx).
+const PLAY_CASCADE_STAGGER_MS = 90;
+const JUST_PLAYED_FALLBACK_MS = 5000;
+function orderForCascade(tiles: PendingTile[]): PendingTile[] {
+  if (tiles.length <= 1) return tiles;
+  const horizontal = tiles.every((t) => t.row === tiles[0].row);
+  return [...tiles].sort((a, b) => (horizontal ? a.col - b.col : a.row - b.row));
+}
+
 function Harness() {
   const rack = "HELLO?Z";
   const [order, setOrder] = useState<number[]>([0, 1, 2, 3, 4, 5, 6]);
   const [pending, setPending] = useState<PendingTile[]>([]);
+  const [board, setBoard] = useState(EMPTY_BOARD);
+  const [justPlayed, setJustPlayed] = useState<
+    { row: number; col: number; letter: string; blank: boolean; delayMs: number }[]
+  >([]);
+  const justPlayedTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Simulates the real app's ElectricSQL sync lag: the committed `board`
+  // catches up to the just-played tiles some time *after* the play "submits"
+  // (pending clears), reproducing the exact race that used to cause a
+  // flash -- see justPlayed's doc on Board.tsx. Deliberately longer than the
+  // cascade's own stagger+transition time, so this harness actually exercises
+  // the "board syncs after the animation would have finished" case.
+  const SIMULATED_SYNC_LAG_MS = 700;
+
+  // Mirrors GameScreen's board-sync effect: drop the just-played snapshot
+  // only once the (simulated) synced board actually reflects it, not on a
+  // fixed timer -- see that effect's comment for why.
+  useEffect(() => {
+    if (justPlayed.length === 0) return;
+    const synced = justPlayed.every((t) => {
+      const ch = board[t.row * N + t.col];
+      return ch === (t.blank ? t.letter.toLowerCase() : t.letter.toUpperCase());
+    });
+    if (!synced) return;
+    if (justPlayedTimeoutRef.current) clearTimeout(justPlayedTimeoutRef.current);
+    setJustPlayed([]);
+  }, [board]);
+
+  function submitPending() {
+    if (pending.length === 0) return;
+    const ordered = orderForCascade(pending);
+    if (justPlayedTimeoutRef.current) clearTimeout(justPlayedTimeoutRef.current);
+    setJustPlayed(
+      ordered.map((t, i) => ({ row: t.row, col: t.col, letter: t.letter, blank: t.blank, delayMs: i * PLAY_CASCADE_STAGGER_MS })),
+    );
+    justPlayedTimeoutRef.current = setTimeout(() => setJustPlayed([]), JUST_PLAYED_FALLBACK_MS);
+    setPending([]);
+    setTimeout(() => {
+      setBoard((b) => {
+        const cells = b.split("");
+        for (const t of ordered) cells[t.row * N + t.col] = t.blank ? t.letter.toLowerCase() : t.letter.toUpperCase();
+        return cells.join("");
+      });
+    }, SIMULATED_SYNC_LAG_MS);
+  }
   const [dragActive, setDragActive] = useState<{
     rackIndex: number;
     letter: string;
@@ -223,8 +277,9 @@ function Harness() {
       <div className="game-middle">
         <BoardViewport>
           <Board
-            board={EMPTY_BOARD}
+            board={board}
             pending={pending}
+            justPlayed={justPlayed}
             interactive
             onCellClick={removePendingTile}
             dropTarget={dropTarget?.type === "board" ? dropTarget : null}
@@ -237,6 +292,11 @@ function Harness() {
         </BoardViewport>
       </div>
       <div className="bottom-bar">
+        <div className="game-actions">
+          <button className="btn btn-primary action-play" id="play-button" disabled={pending.length === 0} onClick={submitPending}>
+            Play
+          </button>
+        </div>
         <div className="rack-area">
           <Rack
             rack={rack}

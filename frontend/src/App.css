@@ -849,6 +849,11 @@ textarea {
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
   padding: 0;
   touch-action: none;
+  /* Lets a played tile cross-fade from the dark "placing" shade to the
+   * lighter "committed" one (see Board.tsx's justPlayed) instead of the two
+   * classes swapping instantly. A `transition-delay` set inline per tile
+   * staggers this so a multi-letter play cascades one letter at a time. */
+  transition: background-color 220ms ease;
 }
 .tile:disabled {
   cursor: default;
