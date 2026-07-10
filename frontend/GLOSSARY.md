@@ -81,9 +81,10 @@ Top to bottom, the game screen (`.game-screen`) is laid out as:
 - **Tile** (`Tile.tsx`, `.tile`) — a single letter tile, used on the rack, on the board, and
   in dialogs (swap picker, drag ghost). Shows the **letter** and, unless it's a blank, its
   **point value** chip (`.tile-value`) in the corner.
-- **Blank tile** (`.tile-blank`) — a wildcard tile. Placing one from the rack opens the
-  **blank picker** (see Dialogs) to assign it a letter; it then displays that letter but scores
-  0 points.
+- **Blank tile** — a wildcard tile: an empty-faced tile on the rack and, once played, a
+  normal-looking tile with no point-value chip (deliberately no other marker). Placing one
+  from the rack opens the **blank picker** (see Dialogs) to assign it a letter; it then
+  displays that letter but scores 0 points.
 - **Rack** (`Rack.tsx`, `.rack`) — the player's row of up to 7 tiles, sitting in the
   **rack area** (`.rack-area`) above the action bar. Individual positions are **rack slots**
   (`.rack-slot`); a slot for a tile that's currently placed on the board (pending) renders as

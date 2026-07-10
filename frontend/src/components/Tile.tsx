@@ -64,7 +64,6 @@ export function Tile({
     pending ? "tile-pending" : "",
     selected ? "tile-selected" : "",
     small ? "tile-small" : "",
-    blank ? "tile-blank" : "",
     squareTL ? "tile-square-tl" : "",
     squareBR ? "tile-square-br" : "",
   ]

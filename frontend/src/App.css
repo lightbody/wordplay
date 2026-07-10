@@ -924,29 +924,12 @@ textarea {
    * cast seams between the adjacent tiles of the word being placed; the
    * green move-fill behind them is the emphasis instead. */
 }
-/* The blank tile's permanent wildcard marker: a translucent white ring.
- * Drawn on an ::after pulled INSIDE the cell (not an inset box-shadow
- * hugging the tile's edge): a board tile's border box extends --tile-bleed
- * past its cell into the grid gap, contested territory where a neighboring
- * tile's own bleed also paints -- and since sibling tiles share z-index 2,
- * whichever is later in DOM order wins. An edge-hugging ring therefore got
- * partially painted over per-side depending on where the blank's neighbors
- * sat, rendering as broken/uneven bracket fragments (the long-lived "pale
- * blue edges" bug). The inset formula keeps the ring's outer edge clear of
- * the deepest a neighbor's bleed can reach into this cell (bleed minus the
- * 2px gap) plus 1px of margin, at any bleed value; the 2px floor covers
- * rack/ghost tiles, which have no bleed (--tile-bleed unset) and no
- * overlapping neighbors. */
-.tile-blank::after {
-  content: "";
-  position: absolute;
-  inset: max(2px, calc(var(--tile-bleed, 0px) * 2 - 1px));
-  border: 2px solid rgba(255, 255, 255, 0.55);
-  /* Follows the tile's own corner shape: rounded at word ends, squared on
-   * sides flush against a neighboring tile (tile-square-tl/br). */
-  border-radius: inherit;
-  pointer-events: none;
-}
+/* Blank (wildcard) tiles get no marker: an earlier inset-ring treatment on
+ * the board rendered as broken bracket fragments whenever the blank had
+ * neighbors (neighbor tiles' bleeds painted over parts of it in DOM order)
+ * and was dropped entirely rather than redesigned -- a board blank looks
+ * like any other tile, just with no point value. A rack blank is the tile
+ * with an empty face. */
 .tile-selected {
   box-shadow: 0 0 0 3px var(--accent);
   transform: translateY(-3px);

@@ -416,10 +416,11 @@ const ANCHOR_PENDING: PendingTile[] = [
 // through the O), "GUSTY" (down through the S), and "GAY" (down through the
 // G), so the O and S cells each have all four neighbors filled. Crucially
 // the O and S are BLANKS (lowercase in the board string), matching the
-// reported game: the artifact turned out to be .tile-blank's inset ring
-// marker getting partially painted over by neighboring tiles' bleeds
-// (DOM-order dependent), which only ever manifests on a blank with
-// neighbors -- a fixture without blanks can never reproduce it.
+// reported game: the artifact turned out to be the blank tile's inset ring
+// marker (since removed entirely -- blanks now get no special face) getting
+// partially painted over by neighboring tiles' bleeds (DOM-order
+// dependent), which only ever manifested on a blank with neighbors -- a
+// fixture without blanks could never reproduce it.
 // All-committed, no pending/wordEdges highlighting, matching the screenshot
 // (a past board state, not an in-progress move).
 const SEAM_BOARD = (() => {

@@ -101,11 +101,13 @@ function fillStyle(background: string): React.CSSProperties {
 //
 // (A long-lived "pale hairline around tiles with many neighbors" bug was
 // once misattributed to this bleed being too small on iOS Safari and it was
-// temporarily widened to 3px -- the real culprit was the blank tile's ring
-// marker getting painted over by neighbor bleeds, see .tile-blank::after in
-// App.css. The ring's inset and the value badge's offsets both derive from
-// the --tile-bleed custom property below, so this value can change without
-// re-breaking either.)
+// temporarily widened to 3px -- the real culprit was the blank tile's
+// since-removed ring marker getting painted over by neighbor bleeds, see
+// the blank-tile note in App.css's tiles section. The value badge's offsets
+// derive from the --tile-bleed custom property below, so this value can
+// change without re-breaking it. Anything else drawn near a tile's edge
+// must stay clear of the outer (bleed - 2px gap) band on each side, where a
+// neighboring tile's bleed can paint over this tile in DOM order.)
 const TILE_BLEED = 1.5;
 
 const TILE_BLEED_STYLE: React.CSSProperties = {
