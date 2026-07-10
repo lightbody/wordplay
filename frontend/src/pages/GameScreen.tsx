@@ -21,6 +21,7 @@ import { LastMoveSummary } from "../components/LastMoveSummary";
 import { BlankPicker } from "../components/BlankPicker";
 import { SwapDialog } from "../components/SwapDialog";
 import { MoreMenu } from "../components/MoreMenu";
+import { UnseenTiles } from "../components/UnseenTiles";
 import { SharePanel } from "../components/SharePanel";
 import { MoreIcon, RecallIcon, ShuffleIcon, SwapIcon } from "../components/icons";
 
@@ -213,6 +214,7 @@ export function GameScreen() {
   const [blankFor, setBlankFor] = useState<{ row: number; col: number; rackIndex: number } | null>(null);
   const [swapOpen, setSwapOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
+  const [unseenOpen, setUnseenOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [dragActive, setDragActive] = useState<{
@@ -771,7 +773,7 @@ export function GameScreen() {
       </header>
 
       <div className="game-middle">
-        <ScoreBar game={game} meCreator={meCreator} myTurn={myTurn} />
+        <ScoreBar game={game} meCreator={meCreator} myTurn={myTurn} onOpenUnseenTiles={() => setUnseenOpen(true)} />
         <LastMoveSummary summary={lastMove} />
 
         <BoardViewport>
@@ -885,8 +887,15 @@ export function GameScreen() {
             setMoreOpen(false);
             doResign();
           }}
+          onUnseenTiles={() => {
+            setMoreOpen(false);
+            setUnseenOpen(true);
+          }}
           onClose={() => setMoreOpen(false)}
         />
+      )}
+      {unseenOpen && (
+        <UnseenTiles board={game.board} rack={myRack} onClose={() => setUnseenOpen(false)} />
       )}
 
       {dragActive && (

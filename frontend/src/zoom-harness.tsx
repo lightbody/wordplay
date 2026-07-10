@@ -52,7 +52,7 @@ function Harness() {
           </button>
         </header>
         <div className="game-middle">
-          <ScoreBar game={game} meCreator={true} myTurn={true} />
+          <ScoreBar game={game} meCreator={true} myTurn={true} onOpenUnseenTiles={() => {}} />
           <BoardViewport>
             <Board board={EMPTY_BOARD} pending={[]} interactive={false} />
           </BoardViewport>
