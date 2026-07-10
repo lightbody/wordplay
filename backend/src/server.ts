@@ -7,6 +7,7 @@ import { registerGameRoutes } from "./routes/games.js";
 import { registerHealthRoutes } from "./routes/health.js";
 import { registerInviteRoutes } from "./routes/invites.js";
 import { registerMoveRoutes } from "./routes/moves.js";
+import { registerPushRoutes } from "./routes/push.js";
 import { registerShapeRoutes } from "./routes/shape.js";
 import { registerUserRoutes } from "./routes/users.js";
 
@@ -28,6 +29,7 @@ export function buildApp(ctx: AppContext, allowedOrigin: string): FastifyInstanc
   registerGameRoutes(app, ctx);
   registerMoveRoutes(app, ctx);
   registerInviteRoutes(app, ctx);
+  registerPushRoutes(app, ctx);
   registerDictionaryRoutes(app, ctx);
 
   return app;

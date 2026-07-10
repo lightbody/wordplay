@@ -16,7 +16,12 @@ function Harness() {
       <div className="app-page">
         <header className="topbar">
           <span className="wordmark wordmark-sm">Wordplay</span>
-          <AccountMenu username="PSquad32" email="patrick@lightbody.net" onSignOut={() => alert("sign out")} />
+          <AccountMenu
+            username="PSquad32"
+            email="patrick@lightbody.net"
+            onSignOut={() => alert("sign out")}
+            getAccessToken={() => Promise.resolve("mock-token")}
+          />
         </header>
         <div className="content">
           <button className="btn btn-primary btn-lg btn-block">+ New game</button>

@@ -539,6 +539,22 @@ textarea {
   justify-content: flex-start;
   color: var(--error);
 }
+.account-menu-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  font: var(--text-body-sm);
+  color: var(--text-primary);
+}
+.account-menu-hint {
+  font: var(--text-caption);
+  color: var(--text-tertiary);
+  margin: 0;
+}
+.account-menu-error {
+  color: var(--error);
+}
 
 .content {
   padding: 1rem;

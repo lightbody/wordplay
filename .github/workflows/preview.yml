@@ -64,12 +64,18 @@ jobs:
           # ALLOWED_ORIGIN=* is preview-only: the app never uses credentialed
           # CORS requests (Bearer-header auth), so the wildcard is safe and
           # avoids predicting the Cloudflare Pages preview URL slug.
+          # One shared "preview" VAPID keypair reused across every PR stack —
+          # push_subscriptions rows live in this PR's own Neon branch and are
+          # torn down with it, so per-PR keys buy nothing.
           flyctl secrets set --app "$BACKEND_APP" --stage \
             DATABASE_URL='${{ steps.neon.outputs.db_url_pooled }}' \
             WORKOS_JWKS_URL='${{ secrets.WORKOS_JWKS_URL }}' \
             ELECTRIC_URL="https://$ELECTRIC_APP.fly.dev" \
             PUBLIC_APP_URL="https://wordplay.lightbody.net" \
-            ALLOWED_ORIGIN='*'
+            ALLOWED_ORIGIN='*' \
+            VAPID_PUBLIC_KEY='${{ secrets.VAPID_PREVIEW_PUBLIC_KEY }}' \
+            VAPID_PRIVATE_KEY='${{ secrets.VAPID_PREVIEW_PRIVATE_KEY }}' \
+            VAPID_SUBJECT='mailto:push@wordplay.lightbody.net'
           flyctl deploy --app "$BACKEND_APP" --config fly.backend.toml --remote-only
 
       - name: Update preview environment comment

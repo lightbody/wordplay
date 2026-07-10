@@ -6,6 +6,7 @@ import type { AppContext } from "../context.js";
 import { withTransaction } from "../db.js";
 import { AppError } from "../errors.js";
 import { GAME_COLUMNS, type Game } from "../models.js";
+import { sendPush } from "../push.js";
 import { alphanumericToken, parseUuidParam } from "../util.js";
 import { attachOpponent } from "./games.js";
 
@@ -71,7 +72,7 @@ export function registerInviteRoutes(app: FastifyInstance, ctx: AppContext): voi
 
       // Idempotent: if this caller already claimed it, just return the game.
       if (status === "claimed") {
-        if (claimedBy === userId) return { game_id: gameId };
+        if (claimedBy === userId) return { game_id: gameId, notify: null };
         throw AppError.conflict("already_claimed");
       }
       if (status !== "pending") throw AppError.conflict("invite_revoked");
@@ -92,9 +93,17 @@ export function registerInviteRoutes(app: FastifyInstance, ctx: AppContext): voi
         [userId, token],
       );
 
-      return { game_id: gameId };
+      return { game_id: gameId, notify: { creatorId: createdBy as string, joinerUsername: username as string } };
     });
 
-    return reply.send(result);
+    if (result.notify) {
+      await sendPush(ctx.pool, result.notify.creatorId, {
+        title: "Wordplay",
+        body: `${result.notify.joinerUsername} accepted your invite!`,
+        url: `/games/${result.game_id}`,
+      });
+    }
+
+    return reply.send({ game_id: result.game_id });
   });
 }

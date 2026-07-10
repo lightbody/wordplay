@@ -1,0 +1,17 @@
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <!-- Maskable icon spec: full-bleed opaque square, no transparency, mark
+       kept inside the centered 80% safe zone since the OS crops this to a
+       circle/squircle/rounded-square of its own choosing. -->
+  <rect width="512" height="512" fill="#2a5391"/>
+
+  <path
+    d="M112,196 L184,326 L256,238 L328,326 L400,196"
+    fill="none"
+    stroke="#ffffff"
+    stroke-width="44"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+
+  <rect x="350" y="350" width="62" height="62" rx="14" fill="#e4602f"/>
+</svg>

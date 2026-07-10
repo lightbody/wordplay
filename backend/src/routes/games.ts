@@ -8,6 +8,7 @@ import type { AppContext } from "../context.js";
 import { withTransaction } from "../db.js";
 import { AppError } from "../errors.js";
 import { GAME_COLUMNS, MOVE_COLUMNS, type Game } from "../models.js";
+import { sendPush } from "../push.js";
 import { parseUuidParam, systemRng } from "../util.js";
 
 async function loadUsername(ctx: AppContext, userId: string): Promise<string> {
@@ -141,6 +142,12 @@ export function registerGameRoutes(app: FastifyInstance, ctx: AppContext): void 
       if (opponent.id === userId) throw AppError.conflict("cannot_challenge_self");
 
       return attachOpponent(client, game, opponent.id, opponent.username);
+    });
+
+    await sendPush(ctx.pool, game.opponent_id as string, {
+      title: "Wordplay",
+      body: `${game.creator_username} challenged you to a game!`,
+      url: `/games/${game.id}`,
     });
 
     return reply.send(game);

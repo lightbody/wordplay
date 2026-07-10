@@ -1,0 +1,29 @@
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <!-- Opaque backdrop (paper-50) so this also works as apple-touch-icon,
+       which iOS flattens to black wherever there's transparency. -->
+  <rect width="512" height="512" fill="#fffdf9"/>
+
+  <!-- The app's actual tile shape: rounded top-left/bottom-right corners,
+       square top-right/bottom-left (App.css .tile: "10px 0 10px 0"),
+       in the tile-rack blue token. -->
+  <path
+    d="M146,56 L456,56 L456,366 A90,90 0 0 1 366,456 L56,456 L56,146 A90,90 0 0 1 146,56 Z"
+    fill="#2a5391"
+  />
+
+  <!-- "W" monogram: a plain geometric zigzag stroke, not live text, so
+       rendering never depends on a font being installed on the build
+       machine. -->
+  <path
+    d="M112,196 L184,326 L256,238 L328,326 L400,196"
+    fill="none"
+    stroke="#ffffff"
+    stroke-width="44"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+
+  <!-- Small point-value-badge accent, echoing a Scrabble tile's corner
+       number, tucked into the tile's flat bottom-right region. -->
+  <rect x="350" y="350" width="62" height="62" rx="14" fill="#e4602f"/>
+</svg>

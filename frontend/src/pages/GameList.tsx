@@ -20,7 +20,7 @@ interface View {
 
 export function GameList() {
   const profile = useProfile();
-  const { signOut, user } = useAuth();
+  const { signOut, user, getAccessToken } = useAuth();
   const navigate = useNavigate();
   const { data: games, isLoading } = useGamesShape();
 
@@ -59,7 +59,12 @@ export function GameList() {
     <div className="app-page">
       <header className="topbar">
         <span className="wordmark wordmark-sm">Wordplay</span>
-        <AccountMenu username={profile.username} email={user?.email} onSignOut={() => signOut()} />
+        <AccountMenu
+          username={profile.username}
+          email={user?.email}
+          onSignOut={() => signOut()}
+          getAccessToken={getAccessToken}
+        />
       </header>
 
       <div className="content">

@@ -16,7 +16,10 @@ of chrome, update the matching entry here in the same change.
   (`.icon-btn` + `.chevron-left`).
 - **Account menu** (`AccountMenu.tsx`, `.account-menu`) — the **avatar** button in the topbar
   that opens a dropdown **panel** (`.account-menu-panel`) with the user's identity, an
-  **appearance/theme segment** (System/Light/Dark, `.theme-segment`), and Sign out.
+  **appearance/theme segment** (System/Light/Dark, `.theme-segment`), a **notifications row**
+  (`.account-menu-row`, a `Switch` for push notifications — or, on iOS outside standalone mode,
+  an **Add to Home Screen hint** telling the player Safari only supports notifications for an
+  installed PWA), and Sign out.
 - **Avatar** (`Avatar.tsx`) — the circular initial-letter badge used for a player everywhere
   (topbar, scorebar, game cards). Background color is a deterministic hash of the username, so
   the same person always gets the same color.

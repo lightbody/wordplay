@@ -1,6 +1,14 @@
 import { useEffect, useRef, useState } from "react";
-import { Avatar } from "./Avatar";
+import {
+  getPushSubscription,
+  isPushSupported,
+  needsHomeScreenInstall,
+  subscribeToPush,
+  unsubscribeFromPush,
+} from "../push";
 import { useTheme, type ThemePreference } from "../theme";
+import { Avatar } from "./Avatar";
+import { Switch } from "./Switch";
 
 const THEME_OPTIONS: { value: ThemePreference; label: string }[] = [
   { value: "system", label: "System" },
@@ -8,14 +16,73 @@ const THEME_OPTIONS: { value: ThemePreference; label: string }[] = [
   { value: "dark", label: "Dark" },
 ];
 
+/** "Enable notifications" toggle, or an iOS-specific "add to home screen first" hint. */
+function NotificationsSection({ getAccessToken }: { getAccessToken: () => Promise<string> }) {
+  const [subscribed, setSubscribed] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    getPushSubscription().then((sub) => {
+      if (!cancelled) setSubscribed(sub !== null);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  if (!isPushSupported()) return null;
+
+  if (needsHomeScreenInstall()) {
+    return (
+      <>
+        <div className="account-menu-label">Notifications</div>
+        <p className="account-menu-hint">
+          Add Wordplay to your Home Screen (Share &rarr; Add to Home Screen) to turn on
+          notifications &mdash; Safari only supports them for installed apps.
+        </p>
+      </>
+    );
+  }
+
+  async function handleChange(next: boolean) {
+    setBusy(true);
+    setError(null);
+    try {
+      const token = await getAccessToken();
+      if (next) {
+        await subscribeToPush(token);
+      } else {
+        await unsubscribeFromPush(token);
+      }
+      setSubscribed(next);
+    } catch {
+      setError(next ? "Couldn't enable notifications" : "Couldn't disable notifications");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="account-menu-row">
+      <span id="notifications-label">Notifications</span>
+      <Switch checked={subscribed} onChange={handleChange} disabled={busy} aria-label="Enable notifications" />
+      {error && <p className="account-menu-hint account-menu-error">{error}</p>}
+    </div>
+  );
+}
+
 export function AccountMenu({
   username,
   email,
   onSignOut,
+  getAccessToken,
 }: {
   username: string;
   email?: string;
   onSignOut: () => void;
+  getAccessToken: () => Promise<string>;
 }) {
   const [open, setOpen] = useState(false);
   const { preference, setPreference } = useTheme();
@@ -77,6 +144,10 @@ export function AccountMenu({
               </button>
             ))}
           </div>
+
+          <div className="account-menu-divider" />
+
+          <NotificationsSection getAccessToken={getAccessToken} />
 
           <div className="account-menu-divider" />
 

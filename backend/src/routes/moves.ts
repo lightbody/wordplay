@@ -22,6 +22,7 @@ import type { AppContext } from "../context.js";
 import { withTransaction } from "../db.js";
 import { AppError } from "../errors.js";
 import { GAME_COLUMNS, MOVE_COLUMNS, parseMoveRequest, type Game, type Move } from "../models.js";
+import { sendPush } from "../push.js";
 import { parseUuidParam, systemRng } from "../util.js";
 
 async function insertMove(
@@ -130,6 +131,10 @@ export function registerMoveRoutes(app: FastifyInstance, ctx: AppContext): void 
             move: { move_number: finished.move_count, move_type: "resign" },
             game_over: true,
           },
+          notify: null,
+          moveType: "resign",
+          mainWord: null,
+          score: 0,
         };
       }
 
@@ -151,6 +156,7 @@ export function registerMoveRoutes(app: FastifyInstance, ctx: AppContext): void 
       let tilesJson: string | null = null;
       let wordsJson: string | null = null;
       let swapCount: number | null = null;
+      let mainWord: string | null = null;
 
       if (moveReq.type === "play") {
         moveType = "play";
@@ -163,6 +169,7 @@ export function registerMoveRoutes(app: FastifyInstance, ctx: AppContext): void 
         moveScored = score > 0;
         tilesJson = JSON.stringify(moveReq.tiles);
         wordsJson = JSON.stringify(outcome.words);
+        mainWord = outcome.words[0]?.word ?? null;
       } else if (moveReq.type === "swap") {
         moveType = "swap";
         const count = moveReq.letters.length;
@@ -235,8 +242,27 @@ export function registerMoveRoutes(app: FastifyInstance, ctx: AppContext): void 
           [id],
         )).rows[0];
 
-      return { body: { game: updated, move: mv, rack, game_over: gameOver } };
+      // Push notification for the opponent whose turn it now is. Not sent
+      // for the opening solo move (no opponent yet) or a move that ends the
+      // game (game-over notifications are a separate, not-yet-built thing).
+      const notify =
+        currentPlayer !== null
+          ? { opponentId: currentPlayer, moverUsername: amCreator ? game.creator_username : (game.opponent_username ?? "") }
+          : null;
+
+      return { body: { game: updated, move: mv, rack, game_over: gameOver }, notify, moveType, mainWord, score };
     });
+
+    if (result.notify) {
+      const { opponentId, moverUsername } = result.notify;
+      const body =
+        result.moveType === "play" && result.mainWord && result.score > 0
+          ? `${moverUsername} played ${result.mainWord} for ${result.score} points — your turn`
+          : result.moveType === "swap"
+            ? `${moverUsername} swapped tiles — your turn`
+            : `${moverUsername} passed — your turn`;
+      await sendPush(ctx.pool, opponentId, { title: "Wordplay", body, url: `/games/${id}` });
+    }
 
     return reply.status(201).send(result.body);
   });

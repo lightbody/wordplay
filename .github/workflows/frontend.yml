@@ -36,6 +36,10 @@ jobs:
         env:
           VITE_API_URL: ${{ github.event_name == 'pull_request' && format('https://plightbo-wordplay-backend-pr-{0}.fly.dev', github.event.pull_request.number) || 'https://plightbo-wordplay-backend.fly.dev' }}
           VITE_ELECTRIC_URL: ${{ github.event_name == 'pull_request' && format('https://plightbo-wordplay-electric-pr-{0}.fly.dev', github.event.pull_request.number) || 'https://plightbo-wordplay-electric.fly.dev' }}
+          # Picked up by scripts/generate-manifest.mjs (run as part of `npm
+          # run build`) to give PR previews a distinct name/icon so an
+          # installed preview PWA is never confused with production.
+          VITE_APP_ENV: ${{ github.event_name == 'pull_request' && 'preview' || 'production' }}
           # Same WorkOS Production Client ID for prod and every PR preview
           # (with a wildcard redirect URI registered in the WorkOS
           # dashboard) so prod and preview share one user pool/IDs.
