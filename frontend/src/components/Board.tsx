@@ -99,15 +99,12 @@ function fillStyle(background: string): React.CSSProperties {
 // outer edge pokes ~1.5px into the gap toward an empty cell, which just
 // reads as the played word being one slightly-raised capsule.
 //
-// (A long-lived "pale hairline around tiles with many neighbors" bug was
-// once misattributed to this bleed being too small on iOS Safari and it was
-// temporarily widened to 3px -- the real culprit was the blank tile's
-// since-removed ring marker getting painted over by neighbor bleeds, see
-// the blank-tile note in App.css's tiles section. The value badge's offsets
-// derive from the --tile-bleed custom property below, so this value can
-// change without re-breaking it. Anything else drawn near a tile's edge
-// must stay clear of the outer (bleed - 2px gap) band on each side, where a
-// neighboring tile's bleed can paint over this tile in DOM order.)
+// The value badge's offsets (App.css's .tile-value) derive from the
+// --tile-bleed custom property below, so they track this value
+// automatically. More generally: anything drawn near a tile's edge must
+// stay clear of the outer (bleed - 2px gap) band on each side, since a
+// neighboring tile's own bleed can paint over it there (sibling tiles
+// share one z-index, so DOM order decides who wins).
 const TILE_BLEED = 1.5;
 
 const TILE_BLEED_STYLE: React.CSSProperties = {

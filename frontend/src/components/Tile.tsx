@@ -81,16 +81,12 @@ export function Tile({
   // already-committed tiles. Framer Motion promotes every `motion.*`
   // element to its own compositing layer regardless of whether it's
   // actually animating (readying it for any future prop change), which is
-  // suspected to be why iOS Safari shows a hairline/notch seam between
-  // adjacent tiles that overlap correctly in the DOM but get rasterized as
-  // independent layers with slightly different subpixel-snapped edges. A
-  // plain, unpromoted `<button>` has no such independent layer, so seams
-  // between two of them fall back to ordinary (reliable) box overlap.
-  // `pending`/`interactive`/`justPlayed` are exactly the cases that still
-  // need motion: drag-fade opacity, tap-feedback scale, and (for
-  // justPlayed) preserving DOM continuity from this tile's immediately
-  // prior pending self so the submit color-cascade has something to
-  // transition from.
+  // wasted cost across a board that can have 100+ static tiles. A plain,
+  // unpromoted `<button>` skips that entirely. `pending`/`interactive`/
+  // `justPlayed` are exactly the cases that still need motion: drag-fade
+  // opacity, tap-feedback scale, and (for justPlayed) preserving DOM
+  // continuity from this tile's immediately prior pending self so the
+  // submit color-cascade has something to transition from.
   const useMotion = pending || interactive || justPlayed;
 
   if (!useMotion) {

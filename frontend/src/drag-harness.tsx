@@ -410,19 +410,16 @@ const ANCHOR_PENDING: PendingTile[] = [
   { row: 8, col: 7, rackIndex: 2, letter: "E", blank: false },
 ];
 
-// Regression fixture for the pale-blue partial ring reported around interior
-// board tiles (those with content on 3-4 sides) -- reproduces the exact
-// crossword shape from the bug report: "GODS" horizontal through "SOD" (down
-// through the O), "GUSTY" (down through the S), and "GAY" (down through the
-// G), so the O and S cells each have all four neighbors filled. Crucially
-// the O and S are BLANKS (lowercase in the board string), matching the
-// reported game: the artifact turned out to be the blank tile's inset ring
-// marker (since removed entirely -- blanks now get no special face) getting
-// partially painted over by neighboring tiles' bleeds (DOM-order
-// dependent), which only ever manifested on a blank with neighbors -- a
-// fixture without blanks could never reproduce it.
-// All-committed, no pending/wordEdges highlighting, matching the screenshot
-// (a past board state, not an in-progress move).
+// Rendering-regression fixture for a dense crossword: "GODS" horizontal
+// through "SOD" (down through the O), "GUSTY" (down through the S), and
+// "GAY" (down through the G), so O and S each have all four neighbors
+// filled. O and S are BLANKS (lowercase in the board string) -- any future
+// per-tile visual marker (blanks currently get none, see App.css) should be
+// checked against this fixture, since a marker anchored to a tile's bled
+// edge rather than pulled inside the cell can get partially painted over by
+// neighboring tiles at exactly this kind of multi-neighbor intersection.
+// All-committed, no pending/wordEdges highlighting (a past board state, not
+// an in-progress move).
 const SEAM_BOARD = (() => {
   const cells = ".".repeat(N * N).split("");
   const place = (row: number, col: number, letter: string) => {
@@ -444,11 +441,10 @@ const SEAM_BOARD = (() => {
   place(6, 9, "U");
   place(8, 9, "T");
   place(9, 9, "Y");
-  // Second, denser cluster (reported as "notches...whenever they
-  // intersect" on a busier board than the 4-word GODS cluster above) --
-  // "MOONY" horizontal, "LO" down through the second O, "OX" down through
-  // the first O, "ME" down through the M. Several 3-of-4-neighbor corners
-  // with a genuinely empty diagonal cell, close together.
+  // Second, denser cluster -- "MOONY" horizontal, "LO" down through the
+  // second O, "OX" down through the first O, "ME" down through the M.
+  // Several 3-of-4-neighbor corners with a genuinely empty diagonal cell,
+  // close together.
   place(10, 2, "M");
   place(10, 3, "O");
   place(10, 4, "O");
