@@ -410,11 +410,16 @@ const ANCHOR_PENDING: PendingTile[] = [
   { row: 8, col: 7, rackIndex: 2, letter: "E", blank: false },
 ];
 
-// Regression fixture for the pale-blue hairline seam reported around
-// interior board tiles (those with content on 3-4 sides) -- reproduces the
-// exact crossword shape from the bug report: "GODS" horizontal through
-// "SOD" (down through the O), "GUSTY" (down through the S), and "GAY" (down
-// through the G), so the O and S cells each have all four neighbors filled.
+// Regression fixture for the pale-blue partial ring reported around interior
+// board tiles (those with content on 3-4 sides) -- reproduces the exact
+// crossword shape from the bug report: "GODS" horizontal through "SOD" (down
+// through the O), "GUSTY" (down through the S), and "GAY" (down through the
+// G), so the O and S cells each have all four neighbors filled. Crucially
+// the O and S are BLANKS (lowercase in the board string), matching the
+// reported game: the artifact turned out to be .tile-blank's inset ring
+// marker getting partially painted over by neighboring tiles' bleeds
+// (DOM-order dependent), which only ever manifests on a blank with
+// neighbors -- a fixture without blanks can never reproduce it.
 // All-committed, no pending/wordEdges highlighting, matching the screenshot
 // (a past board state, not an in-progress move).
 const SEAM_BOARD = (() => {
@@ -422,11 +427,11 @@ const SEAM_BOARD = (() => {
   const place = (row: number, col: number, letter: string) => {
     cells[row * N + col] = letter;
   };
-  // "GODS" horizontal
+  // "GODS" horizontal -- the O and S are blanks (lowercase).
   place(7, 6, "G");
-  place(7, 7, "O");
+  place(7, 7, "o");
   place(7, 8, "D");
-  place(7, 9, "S");
+  place(7, 9, "s");
   // "GAY" down through the G
   place(8, 6, "A");
   place(9, 6, "Y");

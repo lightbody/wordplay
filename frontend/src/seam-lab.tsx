@@ -18,16 +18,18 @@ import { BoardViewport } from "./components/BoardViewport";
 import "./App.css";
 
 // Same GODS/SOD/GUSTY/GAY cluster as the original bug report (and the
-// drag-harness "seams" scenario).
+// drag-harness "seams" scenario). The O and S are BLANKS (lowercase), like
+// the reported game's -- the artifact turned out to be the blank-tile ring
+// marker being partially covered by neighboring tiles' bleeds.
 const SEAM_BOARD = (() => {
   const cells = ".".repeat(N * N).split("");
   const place = (row: number, col: number, letter: string) => {
     cells[row * N + col] = letter;
   };
   place(7, 6, "G");
-  place(7, 7, "O");
+  place(7, 7, "o");
   place(7, 8, "D");
-  place(7, 9, "S");
+  place(7, 9, "s");
   place(8, 6, "A");
   place(9, 6, "Y");
   place(6, 7, "S");
