@@ -309,9 +309,13 @@ export function Board({
         // over both together) rather than always sitting at the shared
         // z-index:1 tier -- otherwise an underFill tile's letter would get
         // hidden under its *own* backing fill.
+        // TEMPORARY DIAGNOSTIC (revert once we know what's actually showing
+        // at the seam on iOS Safari): magenta instead of the real matching
+        // color, so a screenshot tells us definitively whether this fill is
+        // even reaching the seam at all, rather than guessing blind again.
         tileFill = {
           style: {
-            ...tileFillStyle(pend ? "var(--tile-rack)" : "var(--tile-board)", { left, right, top, bottom }),
+            ...tileFillStyle("magenta", { left, right, top, bottom }),
             zIndex: underFill ? 0 : 1,
           },
         };
