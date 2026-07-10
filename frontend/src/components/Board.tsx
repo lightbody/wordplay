@@ -92,15 +92,23 @@ function fillStyle(background: string): React.CSSProperties {
  * meet exactly" requirement entirely -- whatever sliver of imprecision is
  * left in the *tile's* own edge reveals more of this same-colored layer
  * instead of the gap's true background. */
+// TEMPORARY DIAGNOSTIC margin for tileFillStyle only (not FILL_MARGIN,
+// which the green word-highlight fill also uses) -- absurdly large so a
+// screenshot answers a yes/no question: does *any* amount of negative-inset
+// bleed on this element ever show up at the seam on iOS Safari, or does the
+// bleed technique itself not apply here at all regardless of magnitude?
+// Revert to FILL_MARGIN once answered.
+const DIAGNOSTIC_TILE_FILL_MARGIN = 24;
+
 function tileFillStyle(
   background: string,
   sides: { top: boolean; right: boolean; bottom: boolean; left: boolean },
 ): React.CSSProperties {
   return {
-    top: sides.top ? -FILL_MARGIN : 0,
-    right: sides.right ? -FILL_MARGIN : 0,
-    bottom: sides.bottom ? -FILL_MARGIN : 0,
-    left: sides.left ? -FILL_MARGIN : 0,
+    top: sides.top ? -DIAGNOSTIC_TILE_FILL_MARGIN : 0,
+    right: sides.right ? -DIAGNOSTIC_TILE_FILL_MARGIN : 0,
+    bottom: sides.bottom ? -DIAGNOSTIC_TILE_FILL_MARGIN : 0,
+    left: sides.left ? -DIAGNOSTIC_TILE_FILL_MARGIN : 0,
     background,
     borderRadius: 0,
   };
@@ -309,10 +317,9 @@ export function Board({
         // over both together) rather than always sitting at the shared
         // z-index:1 tier -- otherwise an underFill tile's letter would get
         // hidden under its *own* backing fill.
-        // TEMPORARY DIAGNOSTIC (revert once we know what's actually showing
-        // at the seam on iOS Safari): magenta instead of the real matching
-        // color, so a screenshot tells us definitively whether this fill is
-        // even reaching the seam at all, rather than guessing blind again.
+        // TEMPORARY DIAGNOSTIC color (see DIAGNOSTIC_TILE_FILL_MARGIN above):
+        // magenta, not the real matching color, so it's visible against the
+        // tile's own blue at whatever bleed distance it actually reaches.
         tileFill = {
           style: {
             ...tileFillStyle("magenta", { left, right, top, bottom }),
