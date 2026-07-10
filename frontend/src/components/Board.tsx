@@ -282,6 +282,10 @@ export function Board({
             prem ? `cell-${prem.toLowerCase()}` : "",
             isCenter ? "cell-center" : "",
             content ? "cell-filled" : "",
+            // Paints the cell's OWN background the same color as the tile
+            // sitting on it, in addition to (not instead of) the tile's own
+            // bleed -- see the --tile-fill-color comment in App.css for why.
+            pend ? "cell-filled-pending" : committed !== "." ? "cell-filled-board" : "",
             isDropTarget ? (dropTarget!.valid ? "cell-drop-valid" : "cell-drop-invalid") : "",
           ]
             .filter(Boolean)

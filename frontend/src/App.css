@@ -803,6 +803,22 @@ textarea {
   opacity: 0.65;
   pointer-events: none;
 }
+/* Paints a filled cell's OWN background to match the tile sitting on it
+ * (instead of leaving it --cell-bg/a premium color underneath), on top of
+ * the tile's own TILE_BLEED overlap, not instead of it. The tile has always
+ * relied entirely on out-bleeding the 2px grid gap to hide it; that assumes
+ * every renderer/zoom/DPR combination rounds the overlap the same way, which
+ * iOS Safari doesn't (reported: a visible seam at the tile's edge even with
+ * bleed generously overlapping the gap -- likely each tile's independent
+ * compositing layer snapping its edge to a different subpixel boundary than
+ * its neighbor's, see Board.tsx's TILE_BLEED comment). Matching the cell's
+ * own color underneath means any such rendering-engine-specific gap reveals
+ * more of the *same* color instead of the gray/premium cell color, so it
+ * stays invisible regardless of what causes it. Declared after the cell-dl/
+ * -tl/-dw/-tw/-center rules above so it wins the cascade over them (equal
+ * specificity, source order decides) when a premium/center cell is filled. */
+.cell-filled-board { background: var(--tile-board); }
+.cell-filled-pending { background: var(--tile-rack); }
 /* Fill layer for the pending-word highlight: a solid square
  * that bleeds FILL_MARGIN px past its cell on all sides (see Board.tsx) to
  * frame the played word.
