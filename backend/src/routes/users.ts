@@ -1,8 +1,10 @@
 // Ported from backend/src/handlers/users.rs.
 
 import type { FastifyInstance } from "fastify";
+import { isValidAvatarColorId, isValidAvatarEmoji, randomAvatar } from "@wordplay/shared";
 import { authenticate } from "../auth.js";
 import type { AppContext } from "../context.js";
+import { withTransaction } from "../db.js";
 import { AppError } from "../errors.js";
 
 export function validUsername(name: string): boolean {
@@ -14,7 +16,7 @@ export function registerUserRoutes(app: FastifyInstance, ctx: AppContext): void 
   app.get("/me", async (req, reply) => {
     const userId = await authenticate(ctx, req);
     const { rows } = await ctx.pool.query(
-      "SELECT id, username, default_deduct_unused, created_at FROM users WHERE id = $1",
+      "SELECT id, username, default_deduct_unused, avatar_emoji, avatar_color, created_at FROM users WHERE id = $1",
       [userId],
     );
     if (rows.length === 0) throw AppError.notFound();
@@ -27,11 +29,12 @@ export function registerUserRoutes(app: FastifyInstance, ctx: AppContext): void 
     const username = typeof body.username === "string" ? body.username.trim() : "";
     if (!validUsername(username)) throw AppError.badRequest("invalid_username");
 
+    const { emoji, colorId } = randomAvatar();
     try {
       const { rows } = await ctx.pool.query(
-        `INSERT INTO users (id, username) VALUES ($1, $2)
-         RETURNING id, username, default_deduct_unused, created_at`,
-        [userId, username],
+        `INSERT INTO users (id, username, avatar_emoji, avatar_color) VALUES ($1, $2, $3, $4)
+         RETURNING id, username, default_deduct_unused, avatar_emoji, avatar_color, created_at`,
+        [userId, username, emoji, colorId],
       );
       return reply.status(201).send(rows[0]);
     } catch (e) {
@@ -44,6 +47,40 @@ export function registerUserRoutes(app: FastifyInstance, ctx: AppContext): void 
       }
       throw e;
     }
+  });
+
+  app.patch("/me", async (req, reply) => {
+    const userId = await authenticate(ctx, req);
+    const body = req.body as { avatar_emoji?: unknown; avatar_color?: unknown };
+    const emoji = typeof body.avatar_emoji === "string" ? body.avatar_emoji : "";
+    const colorId = typeof body.avatar_color === "string" ? body.avatar_color : "";
+    if (!isValidAvatarEmoji(emoji) || !isValidAvatarColorId(colorId)) {
+      throw AppError.badRequest("invalid_avatar");
+    }
+
+    const user = await withTransaction(ctx.pool, async (client) => {
+      const { rows } = await client.query(
+        `UPDATE users SET avatar_emoji = $1, avatar_color = $2 WHERE id = $3
+         RETURNING id, username, default_deduct_unused, avatar_emoji, avatar_color, created_at`,
+        [emoji, colorId, userId],
+      );
+      if (rows.length === 0) throw AppError.notFound();
+
+      // Propagate to games denormalized rows so an opponent's already-open
+      // game picks up the change on its next shape sync.
+      await client.query(
+        "UPDATE games SET creator_avatar_emoji = $1, creator_avatar_color = $2 WHERE creator_id = $3",
+        [emoji, colorId, userId],
+      );
+      await client.query(
+        "UPDATE games SET opponent_avatar_emoji = $1, opponent_avatar_color = $2 WHERE opponent_id = $3",
+        [emoji, colorId, userId],
+      );
+
+      return rows[0];
+    });
+
+    return reply.send(user);
   });
 
   app.get("/usernames/:username", async (req, reply) => {

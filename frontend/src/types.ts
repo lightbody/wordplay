@@ -7,6 +7,10 @@ export interface Game {
   opponent_id: string | null;
   creator_username: string;
   opponent_username: string | null;
+  creator_avatar_emoji: string;
+  creator_avatar_color: string;
+  opponent_avatar_emoji: string | null;
+  opponent_avatar_color: string | null;
   current_player_id: string | null;
   deduct_unused: boolean;
   board: string;
@@ -65,6 +69,8 @@ export interface Profile {
   id: string;
   username: string;
   default_deduct_unused: boolean;
+  avatar_emoji: string;
+  avatar_color: string;
   created_at: string;
 }
 

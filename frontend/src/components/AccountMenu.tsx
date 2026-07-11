@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Avatar } from "./Avatar";
+import { AvatarEditorDialog } from "./AvatarEditorDialog";
 import { useTheme, type ThemePreference } from "../theme";
 
 const THEME_OPTIONS: { value: ThemePreference; label: string }[] = [
@@ -11,13 +12,21 @@ const THEME_OPTIONS: { value: ThemePreference; label: string }[] = [
 export function AccountMenu({
   username,
   email,
+  avatarEmoji,
+  avatarColor,
+  onAvatarSave,
   onSignOut,
 }: {
   username: string;
   email?: string;
+  avatarEmoji: string;
+  avatarColor: string;
+  onAvatarSave: (emoji: string, color: string) => Promise<void>;
   onSignOut: () => void;
 }) {
   const [open, setOpen] = useState(false);
+  const [editingAvatar, setEditingAvatar] = useState(false);
+  const [savingAvatar, setSavingAvatar] = useState(false);
   const { preference, setPreference } = useTheme();
   const rootRef = useRef<HTMLDivElement>(null);
 
@@ -47,18 +56,30 @@ export function AccountMenu({
         aria-label="Account menu"
         onClick={() => setOpen((o) => !o)}
       >
-        <Avatar name={username} size={36} />
+        <Avatar name={username} emoji={avatarEmoji} color={avatarColor} size={36} />
       </button>
 
       {open && (
         <div className="account-menu-panel" role="menu">
           <div className="account-menu-header">
-            <Avatar name={username} size={36} />
+            <Avatar name={username} emoji={avatarEmoji} color={avatarColor} size={36} />
             <div className="account-menu-identity">
               <div className="account-menu-username">@{username}</div>
               {email && <div className="account-menu-email">{email}</div>}
             </div>
           </div>
+
+          <button
+            type="button"
+            className="btn btn-ghost btn-block"
+            role="menuitem"
+            onClick={() => {
+              setOpen(false);
+              setEditingAvatar(true);
+            }}
+          >
+            Edit avatar
+          </button>
 
           <div className="account-menu-divider" />
 
@@ -92,6 +113,24 @@ export function AccountMenu({
             Sign out
           </button>
         </div>
+      )}
+
+      {editingAvatar && (
+        <AvatarEditorDialog
+          initialEmoji={avatarEmoji}
+          initialColor={avatarColor}
+          saving={savingAvatar}
+          onCancel={() => setEditingAvatar(false)}
+          onSave={async (emoji, color) => {
+            setSavingAvatar(true);
+            try {
+              await onAvatarSave(emoji, color);
+              setEditingAvatar(false);
+            } finally {
+              setSavingAvatar(false);
+            }
+          }}
+        />
       )}
     </div>
   );

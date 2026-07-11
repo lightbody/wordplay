@@ -10,10 +10,19 @@ import { AppError } from "../errors.js";
 import { GAME_COLUMNS, MOVE_COLUMNS, type Game } from "../models.js";
 import { parseUuidParam, systemRng } from "../util.js";
 
-async function loadUsername(ctx: AppContext, userId: string): Promise<string> {
-  const { rows } = await ctx.pool.query("SELECT username FROM users WHERE id = $1", [userId]);
+interface UserAvatar {
+  username: string;
+  avatar_emoji: string;
+  avatar_color: string;
+}
+
+async function loadUsername(ctx: AppContext, userId: string): Promise<UserAvatar> {
+  const { rows } = await ctx.pool.query(
+    "SELECT username, avatar_emoji, avatar_color FROM users WHERE id = $1",
+    [userId],
+  );
   if (rows.length === 0) throw AppError.notFound();
-  return rows[0].username as string;
+  return rows[0] as UserAvatar;
 }
 
 /**
@@ -26,6 +35,8 @@ export async function attachOpponent(
   game: Game,
   opponentId: string,
   opponentUsername: string,
+  opponentEmoji: string,
+  opponentColor: string,
 ): Promise<Game> {
   const bagRes = await client.query("SELECT bag FROM game_secrets WHERE game_id = $1 FOR UPDATE", [game.id]);
   let bag: string = bagRes.rows[0].bag;
@@ -45,11 +56,12 @@ export async function attachOpponent(
 
   const { rows } = await client.query(
     `UPDATE games SET status = 'active', opponent_id = $1, opponent_username = $2,
-         opponent_rack_count = $3, current_player_id = $4,
-         tiles_remaining = $5, updated_at = now()
-     WHERE id = $6
+         opponent_avatar_emoji = $3, opponent_avatar_color = $4,
+         opponent_rack_count = $5, current_player_id = $6,
+         tiles_remaining = $7, updated_at = now()
+     WHERE id = $8
      RETURNING ${GAME_COLUMNS}`,
-    [opponentId, opponentUsername, rack.length, nextPlayer, bag.length, game.id],
+    [opponentId, opponentUsername, opponentEmoji, opponentColor, rack.length, nextPlayer, bag.length, game.id],
   );
   return rows[0];
 }
@@ -60,7 +72,7 @@ export function registerGameRoutes(app: FastifyInstance, ctx: AppContext): void 
     const body = req.body as { deduct_unused?: unknown };
     const deductUnused = body.deduct_unused === true;
 
-    const creatorUsername = await loadUsername(ctx, userId);
+    const creator = await loadUsername(ctx, userId);
 
     const rng = systemRng();
     let bag = shuffledBag(rng);
@@ -73,11 +85,11 @@ export function registerGameRoutes(app: FastifyInstance, ctx: AppContext): void 
       await client.query("UPDATE users SET default_deduct_unused = $1 WHERE id = $2", [deductUnused, userId]);
 
       const { rows } = await client.query(
-        `INSERT INTO games (creator_id, creator_username, current_player_id, deduct_unused,
-             tiles_remaining, creator_rack_count)
-         VALUES ($1, $2, $1, $3, $4, $5)
+        `INSERT INTO games (creator_id, creator_username, creator_avatar_emoji, creator_avatar_color,
+             current_player_id, deduct_unused, tiles_remaining, creator_rack_count)
+         VALUES ($1, $2, $3, $4, $1, $5, $6, $7)
          RETURNING ${GAME_COLUMNS}`,
-        [userId, creatorUsername, deductUnused, tilesRemaining, rack.length],
+        [userId, creator.username, creator.avatar_emoji, creator.avatar_color, deductUnused, tilesRemaining, rack.length],
       );
       const game = rows[0];
 
@@ -132,15 +144,16 @@ export function registerGameRoutes(app: FastifyInstance, ctx: AppContext): void 
       if (game.creator_id !== userId) throw AppError.forbidden();
       if (game.opponent_id !== null) throw AppError.conflict("already_has_opponent");
 
-      const oppRes = await client.query("SELECT id, username FROM users WHERE lower(username) = lower($1)", [
-        username,
-      ]);
+      const oppRes = await client.query(
+        "SELECT id, username, avatar_emoji, avatar_color FROM users WHERE lower(username) = lower($1)",
+        [username],
+      );
       if (oppRes.rows.length === 0) throw AppError.notFound();
       const opponent = oppRes.rows[0];
 
       if (opponent.id === userId) throw AppError.conflict("cannot_challenge_self");
 
-      return attachOpponent(client, game, opponent.id, opponent.username);
+      return attachOpponent(client, game, opponent.id, opponent.username, opponent.avatar_emoji, opponent.avatar_color);
     });
 
     return reply.send(game);

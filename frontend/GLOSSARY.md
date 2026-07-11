@@ -16,10 +16,12 @@ of chrome, update the matching entry here in the same change.
   (`.icon-btn` + `.chevron-left`).
 - **Account menu** (`AccountMenu.tsx`, `.account-menu`) — the **avatar** button in the topbar
   that opens a dropdown **panel** (`.account-menu-panel`) with the user's identity, an
+  **Edit avatar** row that opens the **avatar editor dialog** (see Dialogs), an
   **appearance/theme segment** (System/Light/Dark, `.theme-segment`), and Sign out.
-- **Avatar** (`Avatar.tsx`) — the circular initial-letter badge used for a player everywhere
-  (topbar, scorebar, game cards). Background color is a deterministic hash of the username, so
-  the same person always gets the same color.
+- **Avatar** (`Avatar.tsx`) — the circular badge used for a player everywhere (topbar, scorebar,
+  game cards): a user-chosen **emoji** on a user-chosen **background color**, picked from the
+  small curated sets in `shared/src/avatar.ts`. Falls back to a hash-derived initial + color
+  (the old scheme) only when a caller has no emoji/color to pass — not expected in normal use.
 
 ## Game screen (`GameScreen.tsx`)
 
@@ -142,6 +144,11 @@ over a dimmed/blurred backdrop, with an optional title and an **actions row** of
   entirely client-side from `game.board` and the player's own rack (`unseenTiles.ts`) — never
   shared with or computed by the opponent's client or the backend, since what's "unseen" differs
   per player. Opened from the **more menu** or by tapping the **tiles-left ring**.
+- **Avatar editor dialog** (`AvatarEditorDialog.tsx`) — "Edit avatar": a large preview circle,
+  a grid of selectable emoji (`.avatar-emoji-grid`), and a row of color swatches
+  (`.avatar-color-row`), from the sets in `shared/src/avatar.ts`. Opened from the **Edit
+  avatar** row in the account menu; Save calls `PATCH /me` and updates the profile everywhere
+  the avatar is shown, including on any of the user's in-progress opponents' game screens.
 - **Share panel** (`SharePanel.tsx`, `.share-panel`) — not a Dialog, but an inline card shown
   in place of the board during the *sharing* phase: a "Challenge by username" form and a
   "Share invite link" button (native share sheet, or copy-link with a **toast**).
