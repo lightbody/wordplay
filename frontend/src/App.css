@@ -1279,13 +1279,6 @@ button.friend-pick:active {
   display: block;
   flex-shrink: 0;
 }
-.hint-text {
-  text-align: center;
-  color: var(--muted);
-  font-size: 0.9rem;
-  margin: 0 0 1rem;
-}
-
 /* --- share panel --- */
 .share-panel {
   padding: 1rem;
