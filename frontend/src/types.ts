@@ -11,6 +11,10 @@ export interface Game {
   creator_avatar_color: string;
   opponent_avatar_emoji: string | null;
   opponent_avatar_color: string | null;
+  pending_opponent_id: string | null;
+  pending_opponent_username: string | null;
+  pending_opponent_avatar_emoji: string | null;
+  pending_opponent_avatar_color: string | null;
   current_player_id: string | null;
   deduct_unused: boolean;
   board: string;
@@ -36,6 +40,16 @@ export interface Rack {
   user_id: string;
   rack: string;
   updated_at: string;
+  [key: string]: unknown;
+}
+
+export interface Friend {
+  user_id: string;
+  friend_id: string;
+  friend_username: string;
+  friend_avatar_emoji: string;
+  friend_avatar_color: string;
+  created_at: string;
   [key: string]: unknown;
 }
 

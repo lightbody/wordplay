@@ -16,8 +16,9 @@ of chrome, update the matching entry here in the same change.
   (`.icon-btn` + `.chevron-left`).
 - **Account menu** (`AccountMenu.tsx`, `.account-menu`) — the **avatar** button in the topbar
   that opens a dropdown **panel** (`.account-menu-panel`) with the user's identity, an
-  **Edit avatar** row that opens the **avatar editor dialog** (see Dialogs), an
-  **appearance/theme segment** (System/Light/Dark, `.theme-segment`), and Sign out.
+  **Edit avatar** row that opens the **avatar editor dialog** (see Dialogs), a **Friends** row
+  that navigates to the **friends page**, an **appearance/theme segment** (System/Light/Dark,
+  `.theme-segment`), and Sign out.
 - **Avatar** (`Avatar.tsx`) — the circular badge used for a player everywhere (topbar, scorebar,
   game cards): a user-chosen **emoji** on a user-chosen **background color**, picked from the
   small curated sets in `shared/src/avatar.ts`. Falls back to a hash-derived initial + color
@@ -103,8 +104,11 @@ Top to bottom, the game screen (`.game-screen`) is laid out as:
   indicator (drawn down from `BAG_SIZE`) showing how many tiles remain in the bag. Tapping it
   opens the **unseen tiles** dialog (see Dialogs).
 - **Last-move summary** — see Game screen above.
-- **Badge** (`.badge` on game cards) — small status pill: "Your move", "Waiting", "Invite a
-  player", "Draw", "You won"/"You lost".
+- **Badge** (`.badge` on game cards) — small status pill: "Your move", "Waiting", "Draw",
+  "You won"/"You lost".
+- **Rematch button** (`.rematch-btn`) — the small "Rematch" action on a finished game card
+  (shown when the opponent is still a friend); one tap starts a new game against them and
+  drops the player into the opening move.
 
 ## Action bar (bottom of the game screen)
 
@@ -150,8 +154,9 @@ over a dimmed/blurred backdrop, with an optional title and an **actions row** of
   avatar** row in the account menu; Save calls `PATCH /me` and updates the profile everywhere
   the avatar is shown, including on any of the user's in-progress opponents' game screens.
 - **Share panel** (`SharePanel.tsx`, `.share-panel`) — not a Dialog, but an inline card shown
-  in place of the board during the *sharing* phase: a "Challenge by username" form and a
-  "Share invite link" button (native share sheet, or copy-link with a **toast**).
+  in place of the board during the *sharing* phase: a "Share invite link" button (native share
+  sheet via `share.ts`'s `shareOrCopy`, or copy-link with a **toast**). Only open (no chosen
+  friend) games reach this phase; joining via the link also makes the joiner a friend.
 - **Toast** (`Toast.tsx`) — a small pill-shaped transient notification (e.g. "Link copied!").
 
 ## Other primitives
@@ -167,13 +172,22 @@ over a dimmed/blurred backdrop, with an optional title and an **actions row** of
 - **Onboarding** (`Onboarding.tsx`) — first-run username picker, with live availability
   checking (`.hint-*` states: checking/available/taken/invalid).
 - **Game list** (`GameList.tsx`) — the home screen after sign-in. Games are grouped into
-  **sections** (`.game-section`: "Your turn", "Their turn", "Waiting for an opponent",
-  "Finished"), each a list of **game cards** (`.game-card`) showing the opponent's avatar,
-  `vs @username`, the score line, and a status badge.
-- **New game** (`NewGame.tsx`) — the pre-game options screen (currently just the "deduct unused
-  tile values" switch) before playing the opening move.
+  **sections** (`.game-section`: "Your turn", "Their turn", "Finished"), each a list of
+  **game cards** (`.game-card`) showing the opponent's avatar, `vs @username`, the score line,
+  and a status badge (finished cards may also carry a **rematch button**). Opponent-less
+  (`awaiting_opponent`) games are never listed — they only exist on their own game screen
+  until an opponent is attached (helpers in `gameList.ts`).
+- **New game** (`NewGame.tsx`) — the pre-game screen: the "deduct unused tile values" switch,
+  a **friend picker** (`.friend-picker`, tappable **friend rows** that start a game against
+  that friend), and a "Play with a link" card for the open-invite flow.
+- **Friends page** (`Friends.tsx`, `/friends`) — the friends list: a "Share my friend link"
+  card (personal reusable link, with a "Get a new link" regenerate action) and **friend rows**
+  (`.friend-row`: avatar, `@username`, Remove). Reached from the **account menu**.
 - **Invite accept** (`InviteAccept.tsx`) — the landing page reached from a shared invite link,
   with a signed-out "hero" preview of who challenged you and their opening word.
+- **Friend accept** (`FriendAccept.tsx`, `/friend/:token`) — the landing page reached from a
+  personal friend link; signing in (and onboarding, if new) establishes the friendship and
+  lands on the friends page.
 - **Summary** (`Summary.tsx`) — post-game recap: a **result banner** (win/loss/draw), a
   **final scores** row (`.final-scores`, each side a **score column** `.score-col` with label,
   final score, and any unused-tile adjustment), a **scores-over-time chart**, and a

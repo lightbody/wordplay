@@ -28,6 +28,7 @@ function Harness() {
               setAvatarEmoji(emoji);
               setAvatarColor(color);
             }}
+            onFriends={() => alert("friends")}
             onSignOut={() => alert("sign out")}
           />
         </header>

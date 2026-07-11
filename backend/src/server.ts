@@ -3,6 +3,7 @@ import Fastify, { type FastifyInstance } from "fastify";
 import type { AppContext } from "./context.js";
 import { errorHandler } from "./errors.js";
 import { registerDictionaryRoutes } from "./routes/dictionary.js";
+import { registerFriendRoutes } from "./routes/friends.js";
 import { registerGameRoutes } from "./routes/games.js";
 import { registerHealthRoutes } from "./routes/health.js";
 import { registerInviteRoutes } from "./routes/invites.js";
@@ -25,6 +26,7 @@ export function buildApp(ctx: AppContext, allowedOrigin: string): FastifyInstanc
   registerHealthRoutes(app);
   registerShapeRoutes(app, ctx);
   registerUserRoutes(app, ctx);
+  registerFriendRoutes(app, ctx);
   registerGameRoutes(app, ctx);
   registerMoveRoutes(app, ctx);
   registerInviteRoutes(app, ctx);

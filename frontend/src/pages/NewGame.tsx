@@ -1,25 +1,30 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useApi, useProfile } from "../profile";
+import { useFriendsShape } from "../shapes";
+import { Avatar } from "../components/Avatar";
 import { Switch } from "../components/Switch";
 
 export function NewGame() {
   const profile = useProfile();
   const getApi = useApi();
   const navigate = useNavigate();
+  const { data: friends } = useFriendsShape();
   const [deductUnused, setDeductUnused] = useState(profile.default_deduct_unused);
   const [creating, setCreating] = useState(false);
 
-  async function create() {
+  async function create(friendId?: string) {
     setCreating(true);
     try {
       const api = await getApi();
-      const { game } = await api.createGame(deductUnused);
+      const { game } = await api.createGame(deductUnused, friendId);
       navigate(`/games/${game.id}`, { replace: true });
     } catch {
       setCreating(false);
     }
   }
+
+  const sorted = [...(friends ?? [])].sort((a, b) => a.friend_username.localeCompare(b.friend_username));
 
   return (
     <div className="app-page">
@@ -45,11 +50,50 @@ export function NewGame() {
               aria-label="Deduct unused tile values from final score"
             />
           </div>
+        </div>
+
+        <div className="card">
+          <h2>Play with a friend</h2>
+          {sorted.length > 0 ? (
+            <div className="friend-rows friend-picker">
+              {sorted.map((f) => (
+                <button
+                  key={f.friend_id}
+                  className="friend-row friend-pick"
+                  disabled={creating}
+                  onClick={() => create(f.friend_id)}
+                >
+                  <Avatar
+                    name={f.friend_username}
+                    emoji={f.friend_avatar_emoji}
+                    color={f.friend_avatar_color}
+                    size={40}
+                  />
+                  <span className="friend-name">@{f.friend_username}</span>
+                  <span className="badge badge-accent">Play</span>
+                </button>
+              ))}
+            </div>
+          ) : (
+            <p className="muted">
+              No friends yet — share your <Link to="/friends">friend link</Link> to add one, or start with an
+              invite link below.
+            </p>
+          )}
+          {sorted.length > 0 && (
+            <p className="muted">
+              You'll play the opening move next; the game shows up for them once it's played.
+            </p>
+          )}
+        </div>
+
+        <div className="card">
+          <h2>Play with a link</h2>
           <p className="muted">
-            You'll play the opening move next, then challenge a friend by username or share an
-            invite link.
+            Start solo: play your opening move, then share an invite link with anyone — they become a friend
+            when they join.
           </p>
-          <button className="btn btn-primary btn-lg btn-block" disabled={creating} onClick={create}>
+          <button className="btn btn-primary btn-lg btn-block" disabled={creating} onClick={() => create()}>
             {creating ? "Creating…" : "Start & play first move"}
           </button>
         </div>

@@ -15,6 +15,7 @@ export function AccountMenu({
   avatarEmoji,
   avatarColor,
   onAvatarSave,
+  onFriends,
   onSignOut,
 }: {
   username: string;
@@ -22,6 +23,7 @@ export function AccountMenu({
   avatarEmoji: string;
   avatarColor: string;
   onAvatarSave: (emoji: string, color: string) => Promise<void>;
+  onFriends?: () => void;
   onSignOut: () => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -80,6 +82,20 @@ export function AccountMenu({
           >
             Edit avatar
           </button>
+
+          {onFriends && (
+            <button
+              type="button"
+              className="btn btn-ghost btn-block"
+              role="menuitem"
+              onClick={() => {
+                setOpen(false);
+                onFriends();
+              }}
+            >
+              Friends
+            </button>
+          )}
 
           <div className="account-menu-divider" />
 

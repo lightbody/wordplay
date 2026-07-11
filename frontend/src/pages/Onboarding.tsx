@@ -4,6 +4,7 @@ import { ApiError } from "../api";
 import { useApi, useProfileContext } from "../profile";
 
 const PENDING_INVITE_KEY = "wordplay:pendingInvite";
+const PENDING_FRIEND_KEY = "wordplay:pendingFriend";
 
 export function Onboarding() {
   const getApi = useApi();
@@ -58,9 +59,13 @@ export function Onboarding() {
       const profile = await api.createMe(username.trim());
       setProfile(profile);
       const pendingInvite = sessionStorage.getItem(PENDING_INVITE_KEY);
+      const pendingFriend = sessionStorage.getItem(PENDING_FRIEND_KEY);
       if (pendingInvite) {
         sessionStorage.removeItem(PENDING_INVITE_KEY);
         navigate(`/invite/${pendingInvite}`, { replace: true });
+      } else if (pendingFriend) {
+        sessionStorage.removeItem(PENDING_FRIEND_KEY);
+        navigate(`/friend/${pendingFriend}`, { replace: true });
       } else {
         navigate("/", { replace: true });
       }

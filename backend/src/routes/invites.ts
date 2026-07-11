@@ -7,6 +7,7 @@ import { withTransaction } from "../db.js";
 import { AppError } from "../errors.js";
 import { GAME_COLUMNS, type Game } from "../models.js";
 import { alphanumericToken, parseUuidParam } from "../util.js";
+import { addFriendship } from "./friends.js";
 import { attachOpponent } from "./games.js";
 
 export function registerInviteRoutes(app: FastifyInstance, ctx: AppContext): void {
@@ -20,6 +21,8 @@ export function registerInviteRoutes(app: FastifyInstance, ctx: AppContext): voi
 
     if (game.creator_id !== userId) throw AppError.forbidden();
     if (game.opponent_id !== null) throw AppError.conflict("already_has_opponent");
+    // A game earmarked for a chosen friend isn't open to link invitees.
+    if (game.pending_opponent_id !== null) throw AppError.conflict("friend_game");
 
     const token = alphanumericToken(22);
     await ctx.pool.query("INSERT INTO invites (token, game_id, created_by) VALUES ($1, $2, $3)", [
@@ -89,6 +92,20 @@ export function registerInviteRoutes(app: FastifyInstance, ctx: AppContext): voi
       if (game.opponent_id !== null) throw AppError.conflict("already_has_opponent");
 
       await attachOpponent(client, game, userId, username, avatarEmoji, avatarColor);
+
+      // Playing a game together is durable: accepting an invite also
+      // establishes the friendship (a no-op for existing friends). The game
+      // row's creator_* columns are avatar-propagated, so they're current.
+      await addFriendship(
+        client,
+        {
+          id: game.creator_id,
+          username: game.creator_username,
+          avatar_emoji: game.creator_avatar_emoji,
+          avatar_color: game.creator_avatar_color,
+        },
+        { id: userId, username, avatar_emoji: avatarEmoji, avatar_color: avatarColor },
+      );
 
       await client.query(
         "UPDATE invites SET status = 'claimed', claimed_by = $1, claimed_at = now() WHERE token = $2",

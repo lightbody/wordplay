@@ -20,11 +20,19 @@ export function ScoreBar({
     emoji: meCreator ? game.creator_avatar_emoji : game.opponent_avatar_emoji,
     color: meCreator ? game.creator_avatar_color : game.opponent_avatar_color,
   };
+  // Before a friend game's opening move lands, the opponent isn't attached
+  // yet — fall back to the pending_* columns so the creator still sees who
+  // they're playing.
   const them = {
-    name: (meCreator ? game.opponent_username : game.creator_username) ?? "…",
+    name:
+      (meCreator ? game.opponent_username ?? game.pending_opponent_username : game.creator_username) ?? "…",
     score: meCreator ? game.opponent_score : game.creator_score,
-    emoji: meCreator ? game.opponent_avatar_emoji : game.creator_avatar_emoji,
-    color: meCreator ? game.opponent_avatar_color : game.creator_avatar_color,
+    emoji: meCreator
+      ? game.opponent_avatar_emoji ?? game.pending_opponent_avatar_emoji
+      : game.creator_avatar_emoji,
+    color: meCreator
+      ? game.opponent_avatar_color ?? game.pending_opponent_avatar_color
+      : game.creator_avatar_color,
   };
 
   return (
