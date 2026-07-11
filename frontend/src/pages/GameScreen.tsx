@@ -7,6 +7,8 @@ import { cellAt, checkPlacement, checkPlacementWithDictionary, isEmpty } from ".
 import { useDictionary } from "../dictionary";
 import { moveItem, rackColumnAt } from "../dragMath";
 import { useApi, useProfile } from "../profile";
+import { useSound } from "../sound";
+import { playSound } from "../sounds";
 import { useGamesShape, useMovesShape, useRacksShape } from "../shapes";
 import type { Game, Move, PendingTile, PlacedTileDto } from "../types";
 import { outlineEdges } from "../wordOutline";
@@ -166,6 +168,7 @@ export function GameScreen() {
   const profile = useProfile();
   const getApi = useApi();
   const navigate = useNavigate();
+  const { enabled: soundEnabled } = useSound();
 
   const { data: games } = useGamesShape();
   const { data: racks } = useRacksShape();
@@ -621,6 +624,9 @@ export function GameScreen() {
     setDropTarget(null);
     if (!info) return;
     const hit = dragHitTest(x, y);
+    if (hit && (hit.type === "rack" || hit.valid)) {
+      playSound("tileDrop", soundEnabled);
+    }
 
     // Resolve the rack arrangement first, the same way regardless of where
     // the drag started: dropping on the rack finalizes the tile at the
