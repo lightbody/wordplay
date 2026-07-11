@@ -77,15 +77,18 @@ export function registerInviteRoutes(app: FastifyInstance, ctx: AppContext): voi
       if (status !== "pending") throw AppError.conflict("invite_revoked");
       if (createdBy === userId) throw AppError.conflict("cannot_accept_own_invite");
 
-      const userRes = await client.query("SELECT username FROM users WHERE id = $1", [userId]);
+      const userRes = await client.query(
+        "SELECT username, avatar_emoji, avatar_color FROM users WHERE id = $1",
+        [userId],
+      );
       if (userRes.rows.length === 0) throw AppError.notFound();
-      const username = userRes.rows[0].username;
+      const { username, avatar_emoji: avatarEmoji, avatar_color: avatarColor } = userRes.rows[0];
 
       const gameRes = await client.query(`SELECT ${GAME_COLUMNS} FROM games WHERE id = $1 FOR UPDATE`, [gameId]);
       const game: Game = gameRes.rows[0];
       if (game.opponent_id !== null) throw AppError.conflict("already_has_opponent");
 
-      await attachOpponent(client, game, userId, username);
+      await attachOpponent(client, game, userId, username, avatarEmoji, avatarColor);
 
       await client.query(
         "UPDATE invites SET status = 'claimed', claimed_by = $1, claimed_at = now() WHERE token = $2",

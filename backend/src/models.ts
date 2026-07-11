@@ -11,6 +11,8 @@ export interface User {
   id: string;
   username: string;
   default_deduct_unused: boolean;
+  avatar_emoji: string;
+  avatar_color: string;
   created_at: string;
 }
 
@@ -21,6 +23,10 @@ export interface Game {
   opponent_id: string | null;
   creator_username: string;
   opponent_username: string | null;
+  creator_avatar_emoji: string;
+  creator_avatar_color: string;
+  opponent_avatar_emoji: string | null;
+  opponent_avatar_color: string | null;
   current_player_id: string | null;
   deduct_unused: boolean;
   board: string;
@@ -55,7 +61,8 @@ export interface Move {
 
 export const GAME_COLUMNS =
   "id, status, creator_id, opponent_id, creator_username, " +
-  "opponent_username, current_player_id, deduct_unused, board, tiles_remaining, " +
+  "opponent_username, creator_avatar_emoji, creator_avatar_color, " +
+  "opponent_avatar_emoji, opponent_avatar_color, current_player_id, deduct_unused, board, tiles_remaining, " +
   "creator_rack_count, opponent_rack_count, creator_score, opponent_score, move_count, " +
   "scoreless_streak, final_moves_remaining, ended_reason, winner_id, creator_adjustment, " +
   "opponent_adjustment, created_at, updated_at";

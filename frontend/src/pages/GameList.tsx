@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@workos-inc/authkit-react";
 import { useGamesShape } from "../shapes";
-import { useProfile } from "../profile";
+import { useProfile, useProfileContext, useApi } from "../profile";
 import type { Game } from "../types";
 import { Spinner } from "../components/Spinner";
 import { Avatar } from "../components/Avatar";
@@ -14,12 +14,16 @@ interface View {
   myScore: number;
   theirScore: number;
   opponentName: string;
+  opponentAvatarEmoji: string | null;
+  opponentAvatarColor: string | null;
   myTurn: boolean;
   outcome: "win" | "loss" | "draw" | null;
 }
 
 export function GameList() {
   const profile = useProfile();
+  const { setProfile } = useProfileContext();
+  const getApi = useApi();
   const { signOut, user } = useAuth();
   const navigate = useNavigate();
   const { data: games, isLoading } = useGamesShape();
@@ -43,6 +47,8 @@ export function GameList() {
           theirScore: meCreator ? game.opponent_score : game.creator_score,
           opponentName:
             (meCreator ? game.opponent_username : game.creator_username) ?? "waiting…",
+          opponentAvatarEmoji: meCreator ? game.opponent_avatar_emoji : game.creator_avatar_emoji,
+          opponentAvatarColor: meCreator ? game.opponent_avatar_color : game.creator_avatar_color,
           myTurn: game.current_player_id === profile.id,
           outcome,
         };
@@ -59,7 +65,18 @@ export function GameList() {
     <div className="app-page">
       <header className="topbar">
         <span className="wordmark wordmark-sm">Wordplay</span>
-        <AccountMenu username={profile.username} email={user?.email} onSignOut={() => signOut()} />
+        <AccountMenu
+          username={profile.username}
+          email={user?.email}
+          avatarEmoji={profile.avatar_emoji}
+          avatarColor={profile.avatar_color}
+          onAvatarSave={async (emoji, color) => {
+            const api = await getApi();
+            const updated = await api.updateAvatar(emoji, color);
+            setProfile(updated);
+          }}
+          onSignOut={() => signOut()}
+        />
       </header>
 
       <div className="content">
@@ -105,7 +122,7 @@ function Section({
             className={`game-card${accent ? " game-card-accent" : ""}`}
           >
             <div className="game-card-main">
-              <Avatar name={v.opponentName} size={40} />
+              <Avatar name={v.opponentName} emoji={v.opponentAvatarEmoji} color={v.opponentAvatarColor} size={40} />
               <div className="game-card-text">
                 <span className="opponent">vs @{v.opponentName}</span>
                 <span className="score-line">

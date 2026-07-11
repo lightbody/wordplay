@@ -59,6 +59,12 @@ export function createApi(token: string) {
     checkUsername: (username: string) =>
       request<{ available: boolean; reason?: string }>(`/usernames/${encodeURIComponent(username)}`, token),
 
+    updateAvatar: (emoji: string, color: string) =>
+      request<Profile>("/me", token, {
+        method: "PATCH",
+        body: JSON.stringify({ avatar_emoji: emoji, avatar_color: color }),
+      }),
+
     createGame: (deductUnused: boolean) =>
       request<{ game: Game; rack: string }>("/games", token, {
         method: "POST",
