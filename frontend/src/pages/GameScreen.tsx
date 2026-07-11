@@ -830,7 +830,6 @@ export function GameScreen() {
                   Play
                 </button>
               </div>
-              <p className="hint-text">Play your opening word, then invite an opponent.</p>
             </>
           ) : (
             <>

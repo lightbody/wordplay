@@ -730,10 +730,62 @@ textarea {
   background: var(--bg-surface-sunken);
   color: var(--text-tertiary);
 }
+.game-card-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.35rem;
+}
+.rematch-btn {
+  padding: 4px 10px;
+  color: var(--accent);
+  font: var(--text-label);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+}
 .empty-state {
   text-align: center;
   color: var(--muted);
   padding: 2rem 0;
+}
+
+/* --- friends page --- */
+.friend-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+.friend-row {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.9rem 1rem;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+}
+.friend-name {
+  font-weight: 600;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.friend-remove {
+  color: var(--text-secondary);
+}
+/* friend-row as a tappable button (New game's friend picker) */
+button.friend-pick {
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  color: var(--text);
+  width: 100%;
+}
+button.friend-pick:active {
+  transform: scale(0.99);
 }
 
 /* --- board ---
@@ -1243,13 +1295,6 @@ textarea {
   display: block;
   flex-shrink: 0;
 }
-.hint-text {
-  text-align: center;
-  color: var(--muted);
-  font-size: 0.9rem;
-  margin: 0 0 1rem;
-}
-
 /* --- share panel --- */
 .share-panel {
   padding: 1rem;
@@ -1302,6 +1347,53 @@ textarea {
   grid-template-columns: repeat(7, 1fr);
   gap: 6px;
   margin: 1rem 0;
+}
+.avatar-preview {
+  width: 72px;
+  height: 72px;
+  margin: 0 auto var(--space-4);
+  border-radius: var(--radius-pill);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 36px;
+}
+.avatar-emoji-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 6px;
+  margin-bottom: var(--space-4);
+}
+.avatar-emoji-grid button {
+  aspect-ratio: 1;
+  min-width: 0;
+  border: none;
+  background: var(--bg-surface-sunken);
+  border-radius: var(--radius-md);
+  font-size: 20px;
+  cursor: pointer;
+  transition: background var(--duration-standard) var(--ease-standard), box-shadow var(--duration-standard) var(--ease-standard);
+}
+.avatar-emoji-grid button.active {
+  background: var(--bg-surface);
+  box-shadow: 0 0 0 2px var(--focus-ring);
+}
+.avatar-color-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  justify-content: center;
+}
+.avatar-color-row button {
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  box-shadow: var(--shadow-xs);
+}
+.avatar-color-row button.active {
+  box-shadow: 0 0 0 2px var(--focus-ring);
 }
 .modal-action-list {
   display: flex;

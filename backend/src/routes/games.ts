@@ -8,13 +8,21 @@ import type { AppContext } from "../context.js";
 import { withTransaction } from "../db.js";
 import { AppError } from "../errors.js";
 import { GAME_COLUMNS, MOVE_COLUMNS, type Game } from "../models.js";
-import { sendPush } from "../push.js";
 import { parseUuidParam, systemRng } from "../util.js";
 
-async function loadUsername(ctx: AppContext, userId: string): Promise<string> {
-  const { rows } = await ctx.pool.query("SELECT username FROM users WHERE id = $1", [userId]);
+interface UserAvatar {
+  username: string;
+  avatar_emoji: string;
+  avatar_color: string;
+}
+
+async function loadUsername(ctx: AppContext, userId: string): Promise<UserAvatar> {
+  const { rows } = await ctx.pool.query(
+    "SELECT username, avatar_emoji, avatar_color FROM users WHERE id = $1",
+    [userId],
+  );
   if (rows.length === 0) throw AppError.notFound();
-  return rows[0].username as string;
+  return rows[0] as UserAvatar;
 }
 
 /**
@@ -27,6 +35,8 @@ export async function attachOpponent(
   game: Game,
   opponentId: string,
   opponentUsername: string,
+  opponentEmoji: string,
+  opponentColor: string,
 ): Promise<Game> {
   const bagRes = await client.query("SELECT bag FROM game_secrets WHERE game_id = $1 FOR UPDATE", [game.id]);
   let bag: string = bagRes.rows[0].bag;
@@ -46,11 +56,14 @@ export async function attachOpponent(
 
   const { rows } = await client.query(
     `UPDATE games SET status = 'active', opponent_id = $1, opponent_username = $2,
-         opponent_rack_count = $3, current_player_id = $4,
-         tiles_remaining = $5, updated_at = now()
-     WHERE id = $6
+         opponent_avatar_emoji = $3, opponent_avatar_color = $4,
+         opponent_rack_count = $5, current_player_id = $6,
+         tiles_remaining = $7, updated_at = now(),
+         pending_opponent_id = NULL, pending_opponent_username = NULL,
+         pending_opponent_avatar_emoji = NULL, pending_opponent_avatar_color = NULL
+     WHERE id = $8
      RETURNING ${GAME_COLUMNS}`,
-    [opponentId, opponentUsername, rack.length, nextPlayer, bag.length, game.id],
+    [opponentId, opponentUsername, opponentEmoji, opponentColor, rack.length, nextPlayer, bag.length, game.id],
   );
   return rows[0];
 }
@@ -58,10 +71,12 @@ export async function attachOpponent(
 export function registerGameRoutes(app: FastifyInstance, ctx: AppContext): void {
   app.post("/games", async (req, reply) => {
     const userId = await authenticate(ctx, req);
-    const body = req.body as { deduct_unused?: unknown };
+    const body = req.body as { deduct_unused?: unknown; friend_id?: unknown };
     const deductUnused = body.deduct_unused === true;
+    const friendId = typeof body.friend_id === "string" && body.friend_id !== "" ? body.friend_id : null;
+    if (friendId === userId) throw AppError.conflict("cannot_play_self");
 
-    const creatorUsername = await loadUsername(ctx, userId);
+    const creator = await loadUsername(ctx, userId);
 
     const rng = systemRng();
     let bag = shuffledBag(rng);
@@ -70,15 +85,73 @@ export function registerGameRoutes(app: FastifyInstance, ctx: AppContext): void 
     const tilesRemaining = bag.length;
 
     const result = await withTransaction(ctx.pool, async (client) => {
+      // Serialize per creator (pending-game reuse below must not race with
+      // a concurrent create by the same user).
+      await client.query("SELECT 1 FROM users WHERE id = $1 FOR UPDATE", [userId]);
       // Remember the option as this user's default for next time.
       await client.query("UPDATE users SET default_deduct_unused = $1 WHERE id = $2", [deductUnused, userId]);
 
+      // A friend game may only be started against a current friend; the
+      // friendship row also supplies the denormalized pending_* values.
+      let friend: { friend_username: string; friend_avatar_emoji: string; friend_avatar_color: string } | null =
+        null;
+      if (friendId) {
+        const fRes = await client.query(
+          `SELECT friend_username, friend_avatar_emoji, friend_avatar_color
+           FROM friendships WHERE user_id = $1 AND friend_id = $2`,
+          [userId, friendId],
+        );
+        if (fRes.rows.length === 0) throw AppError.conflict("not_friends");
+        friend = fRes.rows[0];
+      }
+
+      // Opponent-less games are invisible in the UI, so instead of piling up
+      // fresh ones (and letting the creator re-roll opening racks), reuse the
+      // newest pending game against the same chosen friend — or the newest
+      // open (no-friend) one when none was chosen.
+      const reuseRes = await client.query(
+        `SELECT ${GAME_COLUMNS} FROM games
+         WHERE creator_id = $1 AND status = 'awaiting_opponent' AND opponent_id IS NULL
+           AND pending_opponent_id IS NOT DISTINCT FROM $2
+         ORDER BY updated_at DESC LIMIT 1`,
+        [userId, friendId],
+      );
+      if (reuseRes.rows.length > 0) {
+        let game: Game = reuseRes.rows[0];
+        if (game.deduct_unused !== deductUnused) {
+          const { rows } = await client.query(
+            `UPDATE games SET deduct_unused = $1, updated_at = now() WHERE id = $2 RETURNING ${GAME_COLUMNS}`,
+            [deductUnused, game.id],
+          );
+          game = rows[0];
+        }
+        const rackRes = await client.query(
+          "SELECT rack FROM game_players WHERE game_id = $1 AND user_id = $2",
+          [game.id, userId],
+        );
+        return { status: 200, game, rack: rackRes.rows[0].rack as string };
+      }
+
       const { rows } = await client.query(
-        `INSERT INTO games (creator_id, creator_username, current_player_id, deduct_unused,
-             tiles_remaining, creator_rack_count)
-         VALUES ($1, $2, $1, $3, $4, $5)
+        `INSERT INTO games (creator_id, creator_username, creator_avatar_emoji, creator_avatar_color,
+             pending_opponent_id, pending_opponent_username,
+             pending_opponent_avatar_emoji, pending_opponent_avatar_color,
+             current_player_id, deduct_unused, tiles_remaining, creator_rack_count)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $1, $9, $10, $11)
          RETURNING ${GAME_COLUMNS}`,
-        [userId, creatorUsername, deductUnused, tilesRemaining, rack.length],
+        [
+          userId,
+          creator.username,
+          creator.avatar_emoji,
+          creator.avatar_color,
+          friendId,
+          friend?.friend_username ?? null,
+          friend?.friend_avatar_emoji ?? null,
+          friend?.friend_avatar_color ?? null,
+          deductUnused,
+          tilesRemaining,
+          rack.length,
+        ],
       );
       const game = rows[0];
 
@@ -89,10 +162,10 @@ export function registerGameRoutes(app: FastifyInstance, ctx: AppContext): void 
         rack,
       ]);
 
-      return { game, rack };
+      return { status: 201, game, rack };
     });
 
-    return reply.status(201).send(result);
+    return reply.status(result.status).send({ game: result.game, rack: result.rack });
   });
 
   app.get("/games/:id", async (req, reply) => {
@@ -117,39 +190,5 @@ export function registerGameRoutes(app: FastifyInstance, ctx: AppContext): void 
     );
 
     return reply.send({ game, rack, moves: movesRes.rows });
-  });
-
-  app.post("/games/:id/challenge", async (req, reply) => {
-    const userId = await authenticate(ctx, req);
-    const id = parseUuidParam(req);
-    const body = req.body as { username?: unknown };
-    const username = typeof body.username === "string" ? body.username : "";
-
-    const game = await withTransaction(ctx.pool, async (client) => {
-      const { rows } = await client.query(`SELECT ${GAME_COLUMNS} FROM games WHERE id = $1 FOR UPDATE`, [id]);
-      if (rows.length === 0) throw AppError.notFound();
-      const game: Game = rows[0];
-
-      if (game.creator_id !== userId) throw AppError.forbidden();
-      if (game.opponent_id !== null) throw AppError.conflict("already_has_opponent");
-
-      const oppRes = await client.query("SELECT id, username FROM users WHERE lower(username) = lower($1)", [
-        username,
-      ]);
-      if (oppRes.rows.length === 0) throw AppError.notFound();
-      const opponent = oppRes.rows[0];
-
-      if (opponent.id === userId) throw AppError.conflict("cannot_challenge_self");
-
-      return attachOpponent(client, game, opponent.id, opponent.username);
-    });
-
-    await sendPush(ctx.pool, game.opponent_id as string, {
-      title: "Wordplay",
-      body: `${game.creator_username} challenged you to a game!`,
-      url: `/games/${game.id}`,
-    });
-
-    return reply.send(game);
   });
 }

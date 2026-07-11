@@ -6,8 +6,9 @@ A Scrabble-like word game for two, played over the web.
 
 - `frontend/` — React 18 + TypeScript + Vite. Plain global stylesheet (`frontend/src/App.css`,
   CSS custom properties, no Tailwind/CSS-modules). `motion` (Framer Motion) for tile/layout
-  animations. Data sync via ElectricSQL shapes (`useGamesShape`/`useMovesShape`/`useRacksShape`
-  in `frontend/src/shapes.ts`) against the Node backend. Auth via WorkOS AuthKit.
+  animations. Data sync via ElectricSQL shapes (`useGamesShape`/`useMovesShape`/`useRacksShape`/
+  `useFriendsShape` in `frontend/src/shapes.ts`) against the Node backend. Auth via WorkOS
+  AuthKit.
 - `backend/` — Node + TypeScript (Fastify, `pg`), authoritative game engine + dictionary +
   Postgres.
 - `shared/` — `@wordplay/shared`, an npm workspace package. The single implementation of the game

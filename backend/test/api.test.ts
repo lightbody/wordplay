@@ -99,7 +99,9 @@ afterAll(async () => {
 });
 
 beforeEach(async () => {
-  await pool.query("TRUNCATE users, games, game_players, game_secrets, moves, invites RESTART IDENTITY CASCADE");
+  await pool.query(
+    "TRUNCATE users, games, game_players, game_secrets, moves, invites, friendships, friend_links RESTART IDENTITY CASCADE",
+  );
 });
 
 // --- request helpers ---
@@ -121,9 +123,9 @@ async function post(path: string, sub: string, body: unknown) {
   return { status: res.statusCode, body: res.body.length > 0 ? JSON.parse(res.body) : null };
 }
 
-async function del(path: string, sub: string, body: unknown) {
+async function patch(path: string, sub: string, body: unknown) {
   const res = await app.inject({
-    method: "DELETE",
+    method: "PATCH",
     url: path,
     headers: { authorization: `Bearer ${await token(privateKey, sub)}`, "content-type": "application/json" },
     payload: JSON.stringify(body),
@@ -131,9 +133,38 @@ async function del(path: string, sub: string, body: unknown) {
   return { status: res.statusCode, body: res.body.length > 0 ? JSON.parse(res.body) : null };
 }
 
+async function del(path: string, sub: string, body?: unknown) {
+  const res = await app.inject({
+    method: "DELETE",
+    url: path,
+    headers:
+      body !== undefined
+        ? { authorization: `Bearer ${await token(privateKey, sub)}`, "content-type": "application/json" }
+        : { authorization: `Bearer ${await token(privateKey, sub)}` },
+    payload: body !== undefined ? JSON.stringify(body) : undefined,
+  });
+  return { status: res.statusCode, body: res.body.length > 0 ? JSON.parse(res.body) : null };
+}
+
 async function onboard(sub: string, username: string) {
   const r = await post("/me", sub, { username });
   expect(r.status, `onboard ${username}: ${JSON.stringify(r.body)}`).toBe(201);
+}
+
+/** Establish a friendship via the friend-link flow. */
+async function befriend(owner: string, accepter: string) {
+  const link = await get("/friends/link", owner);
+  expect(link.status, JSON.stringify(link.body)).toBe(200);
+  const r = await post(`/friends/${link.body.token}/accept`, accepter, {});
+  expect(r.status, JSON.stringify(r.body)).toBe(200);
+}
+
+async function friendshipRows(a: string, b: string): Promise<number> {
+  const { rows } = await pool.query(
+    "SELECT 1 FROM friendships WHERE (user_id = $1 AND friend_id = $2) OR (user_id = $2 AND friend_id = $1)",
+    [a, b],
+  );
+  return rows.length;
 }
 
 /** Directly seed a player's rack (bypassing the random draw) for deterministic move tests. */
@@ -208,11 +239,18 @@ describe("wordplay backend API", () => {
     expect(bad.body.error).toBe("invalid_words");
     await pool.query("UPDATE games SET current_player_id = NULL WHERE id = $1", [gameId]);
 
-    // Opponent joins by challenge.
+    // Challenge-by-username is gone.
     const ch = await post(`/games/${gameId}/challenge`, "creator", { username: "Joiner" });
-    expect(ch.status, JSON.stringify(ch.body)).toBe(200);
-    expect(ch.body.status).toBe("active");
-    expect(ch.body.current_player_id).toBe("joiner");
+    expect(ch.status).toBe(404);
+
+    // Opponent joins via an invite link.
+    const invite = await post(`/games/${gameId}/invites`, "creator", {});
+    expect(invite.status, JSON.stringify(invite.body)).toBe(201);
+    const accept = await post(`/invites/${invite.body.token}/accept`, "joiner", {});
+    expect(accept.status, JSON.stringify(accept.body)).toBe(200);
+    const joined = await get(`/games/${gameId}`, "creator");
+    expect(joined.body.game.status).toBe("active");
+    expect(joined.body.game.current_player_id).toBe("joiner");
 
     // Creator can't move out of turn.
     const outOfTurn = await post(`/games/${gameId}/moves`, "creator", { type: "pass" });
@@ -257,6 +295,9 @@ describe("wordplay backend API", () => {
     const accept = await post(`/invites/${itoken}/accept`, "guest", {});
     expect(accept.status, JSON.stringify(accept.body)).toBe(200);
     expect(accept.body.game_id).toBe(gameId);
+
+    // Accepting an invite also forges a durable friendship, both directions.
+    expect(await friendshipRows("host", "guest")).toBe(2);
 
     // Idempotent for the same claimer.
     const again = await post(`/invites/${itoken}/accept`, "guest", {});
@@ -310,6 +351,153 @@ describe("wordplay backend API", () => {
     expect(gone.rows).toHaveLength(0);
   });
 
+  it("friend links: get-or-create, preview, accept, regenerate, remove", async () => {
+    await onboard("alice", "Alice");
+    await onboard("bob", "Bob");
+
+    // Get-or-create is stable across calls.
+    const link = await get("/friends/link", "alice");
+    expect(link.status, JSON.stringify(link.body)).toBe(200);
+    expect(link.body.url).toBe(`https://wordplay.example/friend/${link.body.token}`);
+    const linkAgain = await get("/friends/link", "alice");
+    expect(linkAgain.body.token).toBe(link.body.token);
+
+    // Public preview needs no auth and shows the owner.
+    const preview = await get(`/friends/${link.body.token}/preview`);
+    expect(preview.status).toBe(200);
+    expect(preview.body.username).toBe("Alice");
+    expect((await get("/friends/nosuchtoken/preview")).status).toBe(404);
+
+    // Owner can't friend themselves; unknown tokens 404; the un-onboarded 404.
+    expect((await post(`/friends/${link.body.token}/accept`, "alice", {})).body.error).toBe("cannot_friend_self");
+    expect((await post("/friends/nosuchtoken/accept", "bob", {})).status).toBe(404);
+    expect((await post(`/friends/${link.body.token}/accept`, "stranger", {})).status).toBe(404);
+
+    // Accept establishes both mirrored rows; re-accept is a no-op.
+    const accept = await post(`/friends/${link.body.token}/accept`, "bob", {});
+    expect(accept.status, JSON.stringify(accept.body)).toBe(200);
+    expect(accept.body).toEqual({ friend_id: "alice", friend_username: "Alice" });
+    expect(await friendshipRows("alice", "bob")).toBe(2);
+    expect((await post(`/friends/${link.body.token}/accept`, "bob", {})).status).toBe(200);
+    expect(await friendshipRows("alice", "bob")).toBe(2);
+
+    // Avatar edits propagate into friends' denormalized rows.
+    const avatar = await patch("/me", "alice", { avatar_emoji: "🐙", avatar_color: "sky-vivid" });
+    expect(avatar.status, JSON.stringify(avatar.body)).toBe(200);
+    const mirrored = await pool.query(
+      "SELECT friend_avatar_emoji FROM friendships WHERE user_id = 'bob' AND friend_id = 'alice'",
+    );
+    expect(mirrored.rows[0].friend_avatar_emoji).toBe("🐙");
+
+    // Regenerating invalidates the old link.
+    const regen = await post("/friends/link", "alice", {});
+    expect(regen.status).toBe(201);
+    expect(regen.body.token).not.toBe(link.body.token);
+    expect((await get(`/friends/${link.body.token}/preview`)).status).toBe(404);
+
+    // Removal deletes both directions and is idempotent.
+    expect((await del("/friends/alice", "bob")).status).toBe(204);
+    expect(await friendshipRows("alice", "bob")).toBe(0);
+    expect((await del("/friends/alice", "bob")).status).toBe(204);
+  });
+
+  it("friend games: hidden pending opponent, reuse, attach on opening move", async () => {
+    await onboard("alice", "Alice");
+    await onboard("bob", "Bob");
+    await befriend("alice", "bob");
+
+    // Starting a game against a non-friend is rejected.
+    await onboard("carol", "Carol");
+    const notFriends = await post("/games", "alice", { deduct_unused: false, friend_id: "carol" });
+    expect(notFriends.status).toBe(409);
+    expect(notFriends.body.error).toBe("not_friends");
+    expect((await post("/games", "alice", { deduct_unused: false, friend_id: "alice" })).body.error).toBe(
+      "cannot_play_self",
+    );
+
+    // A friend game records the pending opponent but attaches nobody.
+    const created = await post("/games", "alice", { deduct_unused: false, friend_id: "bob" });
+    expect(created.status, JSON.stringify(created.body)).toBe(201);
+    const game = created.body.game;
+    expect(game.status).toBe("awaiting_opponent");
+    expect(game.opponent_id).toBeNull();
+    expect(game.pending_opponent_id).toBe("bob");
+    expect(game.pending_opponent_username).toBe("Bob");
+
+    // No invite links for a game earmarked for a friend.
+    const invite = await post(`/games/${game.id}/invites`, "alice", {});
+    expect(invite.status).toBe(409);
+    expect(invite.body.error).toBe("friend_game");
+
+    // Re-creating against the same friend reuses the pending game (same
+    // rack — no re-rolling the opening draw), updating the deduct option.
+    const reused = await post("/games", "alice", { deduct_unused: true, friend_id: "bob" });
+    expect(reused.status).toBe(200);
+    expect(reused.body.game.id).toBe(game.id);
+    expect(reused.body.game.deduct_unused).toBe(true);
+    expect(reused.body.rack).toBe(created.body.rack);
+
+    // ...but an open (no-friend) game is a separate pending slot, likewise reused.
+    const open = await post("/games", "alice", { deduct_unused: false });
+    expect(open.status).toBe(201);
+    expect(open.body.game.id).not.toBe(game.id);
+    expect(open.body.game.pending_opponent_id).toBeNull();
+    const openReused = await post("/games", "alice", { deduct_unused: false });
+    expect(openReused.status).toBe(200);
+    expect(openReused.body.game.id).toBe(open.body.game.id);
+
+    // The opening move attaches the friend: game goes active, their turn,
+    // rack dealt — this is the moment the game enters Bob's shape.
+    await setRack(game.id, "alice", "HELLOAB");
+    const play = await post(`/games/${game.id}/moves`, "alice", {
+      type: "play",
+      tiles: [
+        { row: 7, col: 5, letter: "H", blank: false },
+        { row: 7, col: 6, letter: "E", blank: false },
+        { row: 7, col: 7, letter: "L", blank: false },
+        { row: 7, col: 8, letter: "L", blank: false },
+        { row: 7, col: 9, letter: "O", blank: false },
+      ],
+    });
+    expect(play.status, JSON.stringify(play.body)).toBe(201);
+    expect(play.body.game.status).toBe("active");
+    expect(play.body.game.opponent_id).toBe("bob");
+    expect(play.body.game.opponent_username).toBe("Bob");
+    expect(play.body.game.current_player_id).toBe("bob");
+    expect(play.body.game.opponent_rack_count).toBe(7);
+    expect(play.body.game.pending_opponent_id).toBeNull();
+  });
+
+  it("a pending friend game degrades to open when the friendship is revoked", async () => {
+    await onboard("alice", "Alice");
+    await onboard("bob", "Bob");
+    await befriend("alice", "bob");
+
+    const created = await post("/games", "alice", { deduct_unused: false, friend_id: "bob" });
+    const gameId: string = created.body.game.id;
+
+    expect((await del("/friends/bob", "alice")).status).toBe(204);
+
+    await setRack(gameId, "alice", "HELLOAB");
+    const play = await post(`/games/${gameId}/moves`, "alice", {
+      type: "play",
+      tiles: [
+        { row: 7, col: 5, letter: "H", blank: false },
+        { row: 7, col: 6, letter: "E", blank: false },
+        { row: 7, col: 7, letter: "L", blank: false },
+        { row: 7, col: 8, letter: "L", blank: false },
+        { row: 7, col: 9, letter: "O", blank: false },
+      ],
+    });
+    expect(play.status, JSON.stringify(play.body)).toBe(201);
+    expect(play.body.game.status).toBe("awaiting_opponent");
+    expect(play.body.game.opponent_id).toBeNull();
+    expect(play.body.game.pending_opponent_id).toBeNull();
+
+    // Now open to link invitees like any other opponent-less game.
+    expect((await post(`/games/${gameId}/invites`, "alice", {})).status).toBe(201);
+  });
+
   it("shape proxy enforces authorization and never leaks game_secrets", async () => {
     await onboard("member", "Member");
     await onboard("outsider", "Outsider");
@@ -354,5 +542,14 @@ describe("wordplay backend API", () => {
     const racksQuery = electric.lastQuery();
     expect(racksQuery).not.toContain("game_secrets");
     expect(decodeURIComponent(racksQuery!)).toContain("member");
+
+    // friends view is scoped to the caller and never exposes friend_links
+    // (the personal token table has no view at all).
+    const friends = await get("/shape?view=friends", "member");
+    expect(friends.status).toBe(200);
+    const friendsQuery = electric.lastQuery();
+    expect(friendsQuery).toContain("table=friendships");
+    expect(decodeURIComponent(friendsQuery!.replace(/\+/g, " "))).toContain("user_id = 'member'");
+    expect(friendsQuery).not.toContain("friend_links");
   });
 });

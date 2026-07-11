@@ -63,6 +63,10 @@ export function registerShapeRoutes(app: FastifyInstance, ctx: AppContext): void
     if (view === "games") {
       table = "games";
       whereClause = `creator_id = '${me}' OR opponent_id = '${me}'`;
+    } else if (view === "friends") {
+      table = "friendships";
+      whereClause = `user_id = '${me}'`;
+      columns = "user_id,friend_id,friend_username,friend_avatar_emoji,friend_avatar_color,created_at";
     } else if (view === "racks") {
       table = "game_players";
       whereClause = `user_id = '${me}'`;

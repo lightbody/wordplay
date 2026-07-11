@@ -1,4 +1,8 @@
-const COLORS = ["#EF7A4C", "#8FB89B", "#7BAFCF", "#F0C25B", "#E293AC"];
+import { avatarColorHex } from "@wordplay/shared";
+
+// Legacy hash-derived look, kept only as a fallback for a name with no
+// explicit emoji/color (e.g. a stale cached row mid-rollout).
+const LEGACY_COLORS = ["#EF7A4C", "#8FB89B", "#7BAFCF", "#F0C25B", "#E293AC"];
 
 function hash(str: string): number {
   let h = 0;
@@ -6,9 +10,19 @@ function hash(str: string): number {
   return h;
 }
 
-export function Avatar({ name, size = 40 }: { name: string; size?: number }) {
-  const initial = name.trim().charAt(0).toUpperCase() || "?";
-  const bg = COLORS[hash(name) % COLORS.length];
+export function Avatar({
+  name,
+  emoji,
+  color,
+  size = 40,
+}: {
+  name: string;
+  emoji?: string | null;
+  color?: string | null;
+  size?: number;
+}) {
+  const bg = color ? avatarColorHex(color) : LEGACY_COLORS[hash(name) % LEGACY_COLORS.length];
+  const content = emoji || name.trim().charAt(0).toUpperCase() || "?";
   return (
     <div
       style={{
@@ -22,10 +36,10 @@ export function Avatar({ name, size = 40 }: { name: string; size?: number }) {
         alignItems: "center",
         justifyContent: "center",
         font: "var(--text-button)",
-        fontSize: size * 0.42,
+        fontSize: size * (emoji ? 0.55 : 0.42),
       }}
     >
-      {initial}
+      {content}
     </div>
   );
 }

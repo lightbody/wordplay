@@ -2,7 +2,7 @@ import { useShape } from "@electric-sql/react";
 import { useAuth } from "@workos-inc/authkit-react";
 import { useCallback } from "react";
 import { BASE } from "./api";
-import type { Game, Move, Rack } from "./types";
+import type { Friend, Game, Move, Rack } from "./types";
 
 // All shapes are proxied through the backend's /shape endpoint (never
 // Electric directly) so the server can enforce per-user row filters. The
@@ -30,6 +30,16 @@ export function useGamesShape() {
   return useShape<Game>({
     url: `${BASE}/shape`,
     params: { view: "games" },
+    fetchClient,
+  });
+}
+
+/** My friends (one mirrored row per friendship, filtered to me server-side). */
+export function useFriendsShape() {
+  const fetchClient = useShapeFetchClient();
+  return useShape<Friend>({
+    url: `${BASE}/shape`,
+    params: { view: "friends" },
     fetchClient,
   });
 }

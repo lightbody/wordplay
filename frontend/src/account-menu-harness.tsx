@@ -5,12 +5,15 @@
 // hand-built mock data instead. Not part of the app: not imported from
 // main.tsx, not linked from any route. `npm run dev` and navigate to
 // /account-menu-harness.html. See CLAUDE.md.
+import { useState } from "react";
 import { createRoot } from "react-dom/client";
 import { ThemeProvider } from "./theme";
 import { AccountMenu } from "./components/AccountMenu";
 import "./App.css";
 
 function Harness() {
+  const [avatarEmoji, setAvatarEmoji] = useState("🦊");
+  const [avatarColor, setAvatarColor] = useState("coral-vivid");
   return (
     <ThemeProvider>
       <div className="app-page">
@@ -19,6 +22,13 @@ function Harness() {
           <AccountMenu
             username="PSquad32"
             email="patrick@lightbody.net"
+            avatarEmoji={avatarEmoji}
+            avatarColor={avatarColor}
+            onAvatarSave={async (emoji, color) => {
+              setAvatarEmoji(emoji);
+              setAvatarColor(color);
+            }}
+            onFriends={() => alert("friends")}
             onSignOut={() => alert("sign out")}
             getAccessToken={() => Promise.resolve("mock-token")}
           />

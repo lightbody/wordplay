@@ -59,10 +59,16 @@ export function createApi(token: string) {
     checkUsername: (username: string) =>
       request<{ available: boolean; reason?: string }>(`/usernames/${encodeURIComponent(username)}`, token),
 
-    createGame: (deductUnused: boolean) =>
+    updateAvatar: (emoji: string, color: string) =>
+      request<Profile>("/me", token, {
+        method: "PATCH",
+        body: JSON.stringify({ avatar_emoji: emoji, avatar_color: color }),
+      }),
+
+    createGame: (deductUnused: boolean, friendId?: string) =>
       request<{ game: Game; rack: string }>("/games", token, {
         method: "POST",
-        body: JSON.stringify({ deduct_unused: deductUnused }),
+        body: JSON.stringify({ deduct_unused: deductUnused, friend_id: friendId }),
       }),
 
     getGame: (id: string) => request<GameDetail>(`/games/${id}`, token),
@@ -91,12 +97,6 @@ export function createApi(token: string) {
         body: JSON.stringify({ type: "resign" }),
       }),
 
-    challenge: (id: string, username: string) =>
-      request<Game>(`/games/${id}/challenge`, token, {
-        method: "POST",
-        body: JSON.stringify({ username }),
-      }),
-
     createInvite: (id: string) =>
       request<{ token: string; url: string }>(`/games/${id}/invites`, token, { method: "POST" }),
 
@@ -116,5 +116,18 @@ export function createApi(token: string) {
         method: "DELETE",
         body: JSON.stringify({ endpoint }),
       }),
+
+    getFriendLink: () => request<{ token: string; url: string }>("/friends/link", token),
+
+    regenerateFriendLink: () =>
+      request<{ token: string; url: string }>("/friends/link", token, { method: "POST" }),
+
+    acceptFriend: (friendToken: string) =>
+      request<{ friend_id: string; friend_username: string }>(`/friends/${friendToken}/accept`, token, {
+        method: "POST",
+      }),
+
+    removeFriend: (friendId: string) =>
+      request<void>(`/friends/${encodeURIComponent(friendId)}`, token, { method: "DELETE" }),
   };
 }
