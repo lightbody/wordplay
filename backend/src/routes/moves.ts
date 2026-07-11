@@ -23,6 +23,7 @@ import { withTransaction } from "../db.js";
 import { AppError } from "../errors.js";
 import { GAME_COLUMNS, MOVE_COLUMNS, parseMoveRequest, type Game, type Move } from "../models.js";
 import { parseUuidParam, systemRng } from "../util.js";
+import { attachOpponent } from "./games.js";
 
 async function insertMove(
   client: PoolClient,
@@ -230,10 +231,41 @@ export function registerMoveRoutes(app: FastifyInstance, ctx: AppContext): void 
       );
 
       const gameOver = turn.finished !== null;
-      const updated = gameOver ? await finalize(client, id, game, turn.finished as EndReason) : (await client.query(
+      let updated: Game = gameOver ? await finalize(client, id, game, turn.finished as EndReason) : (await client.query(
           `SELECT ${GAME_COLUMNS} FROM games WHERE id = $1`,
           [id],
         )).rows[0];
+
+      // A friend game earmarks its opponent at creation but only attaches
+      // them once the opening move has landed — that's the moment the game
+      // enters the friend's shape and turns visible to them.
+      if (openingSolo && updated.pending_opponent_id !== null) {
+        const pendingId = updated.pending_opponent_id;
+        const fRes = await client.query("SELECT 1 FROM friendships WHERE user_id = $1 AND friend_id = $2", [
+          userId,
+          pendingId,
+        ]);
+        if (fRes.rows.length === 0) {
+          // Unfriended since the game was created: degrade to an open,
+          // link-shareable game instead of force-attaching them.
+          const { rows } = await client.query(
+            `UPDATE games SET pending_opponent_id = NULL, pending_opponent_username = NULL,
+                 pending_opponent_avatar_emoji = NULL, pending_opponent_avatar_color = NULL
+             WHERE id = $1 RETURNING ${GAME_COLUMNS}`,
+            [id],
+          );
+          updated = rows[0];
+        } else {
+          // Pass the post-move row: attachOpponent keys the next turn off
+          // move_count >= 1, which must see this opening move.
+          const oppRes = await client.query(
+            "SELECT username, avatar_emoji, avatar_color FROM users WHERE id = $1",
+            [pendingId],
+          );
+          const opp = oppRes.rows[0];
+          updated = await attachOpponent(client, updated, pendingId, opp.username, opp.avatar_emoji, opp.avatar_color);
+        }
+      }
 
       return { body: { game: updated, move: mv, rack, game_over: gameOver } };
     });

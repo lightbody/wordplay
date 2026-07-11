@@ -830,7 +830,11 @@ export function GameScreen() {
                   Play
                 </button>
               </div>
-              <p className="hint-text">Play your opening word, then invite an opponent.</p>
+              <p className="hint-text">
+                {game.pending_opponent_username
+                  ? `Play your opening word to start the game — @${game.pending_opponent_username} sees it once it's played.`
+                  : "Play your opening word, then invite an opponent."}
+              </p>
             </>
           ) : (
             <>

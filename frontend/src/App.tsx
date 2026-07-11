@@ -11,6 +11,8 @@ import { NewGame } from "./pages/NewGame";
 import { GameScreen } from "./pages/GameScreen";
 import { Summary } from "./pages/Summary";
 import { InviteAccept } from "./pages/InviteAccept";
+import { FriendAccept } from "./pages/FriendAccept";
+import { Friends } from "./pages/Friends";
 import { Spinner } from "./components/Spinner";
 
 export default function App() {
@@ -22,8 +24,9 @@ export default function App() {
 
   return (
     <Routes>
-      {/* Invite links resolve their own auth/onboarding flow. */}
+      {/* Invite and friend links resolve their own auth/onboarding flow. */}
       <Route path="/invite/:token" element={<InviteAccept />} />
+      <Route path="/friend/:token" element={<FriendAccept />} />
       <Route path="/*" element={user ? <AuthedApp /> : <Landing />} />
     </Routes>
   );
@@ -58,6 +61,7 @@ function AuthedApp() {
         <Route path="/onboarding" element={<Onboarding />} />
         <Route path="/" element={profile ? <GameList /> : <Navigate to="/onboarding" replace />} />
         <Route path="/new" element={profile ? <NewGame /> : <Navigate to="/onboarding" replace />} />
+        <Route path="/friends" element={profile ? <Friends /> : <Navigate to="/onboarding" replace />} />
         <Route path="/games/:id" element={profile ? <GameScreen /> : <Navigate to="/onboarding" replace />} />
         <Route path="/games/:id/summary" element={profile ? <Summary /> : <Navigate to="/onboarding" replace />} />
         <Route path="*" element={<Navigate to="/" replace />} />

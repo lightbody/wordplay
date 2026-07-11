@@ -76,6 +76,14 @@ export function registerUserRoutes(app: FastifyInstance, ctx: AppContext): void 
         "UPDATE games SET opponent_avatar_emoji = $1, opponent_avatar_color = $2 WHERE opponent_id = $3",
         [emoji, colorId, userId],
       );
+      await client.query(
+        "UPDATE games SET pending_opponent_avatar_emoji = $1, pending_opponent_avatar_color = $2 WHERE pending_opponent_id = $3",
+        [emoji, colorId, userId],
+      );
+      await client.query(
+        "UPDATE friendships SET friend_avatar_emoji = $1, friend_avatar_color = $2 WHERE friend_id = $3",
+        [emoji, colorId, userId],
+      );
 
       return rows[0];
     });

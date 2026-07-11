@@ -27,6 +27,10 @@ export interface Game {
   creator_avatar_color: string;
   opponent_avatar_emoji: string | null;
   opponent_avatar_color: string | null;
+  pending_opponent_id: string | null;
+  pending_opponent_username: string | null;
+  pending_opponent_avatar_emoji: string | null;
+  pending_opponent_avatar_color: string | null;
   current_player_id: string | null;
   deduct_unused: boolean;
   board: string;
@@ -62,7 +66,8 @@ export interface Move {
 export const GAME_COLUMNS =
   "id, status, creator_id, opponent_id, creator_username, " +
   "opponent_username, creator_avatar_emoji, creator_avatar_color, " +
-  "opponent_avatar_emoji, opponent_avatar_color, current_player_id, deduct_unused, board, tiles_remaining, " +
+  "opponent_avatar_emoji, opponent_avatar_color, pending_opponent_id, pending_opponent_username, " +
+  "pending_opponent_avatar_emoji, pending_opponent_avatar_color, current_player_id, deduct_unused, board, tiles_remaining, " +
   "creator_rack_count, opponent_rack_count, creator_score, opponent_score, move_count, " +
   "scoreless_streak, final_moves_remaining, ended_reason, winner_id, creator_adjustment, " +
   "opponent_adjustment, created_at, updated_at";
