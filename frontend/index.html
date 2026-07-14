@@ -11,10 +11,15 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <meta name="theme-color" content="#e4602f" />
     <!-- iOS ignores the manifest's display mode for status-bar styling and
-         wants this duplicated; "black-translucent" only matters once running
-         standalone (Share -> Add to Home Screen), a no-op in a normal tab. -->
+         wants this duplicated; only matters once running standalone (Share
+         -> Add to Home Screen), a no-op in a normal tab. "default" keeps the
+         status bar opaque so iOS reserves space for it automatically --
+         "black-translucent" draws the app full-bleed underneath it instead,
+         which needs every top-anchored bar padded with
+         env(safe-area-inset-top) to avoid colliding with the clock/battery
+         (the topbar doesn't do that, so black-translucent visibly broke it). -->
     <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="Wordplay" />
 
     <meta property="og:title" content="Wordplay" />
