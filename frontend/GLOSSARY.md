@@ -19,7 +19,10 @@ of chrome, update the matching entry here in the same change.
   **Edit avatar** row that opens the **avatar editor dialog** (see Dialogs), a **Friends** row
   that navigates to the **friends page**, an **appearance/theme segment** (System/Light/Dark,
   `.theme-segment`), a **sound segment** (On/Off, also `.theme-segment`, backed by `sound.tsx`'s
-  `useSound()`) toggling the tile-drop click and other future sound effects, and Sign out.
+  `useSound()`) toggling the tile-drop click and other future sound effects, a
+  **notifications row** (`.account-menu-row`, a `Switch` for push notifications — or, on iOS
+  outside standalone mode, an **Add to Home Screen hint** telling the player Safari only
+  supports notifications for an installed PWA), and Sign out.
 - **Avatar** (`Avatar.tsx`) — the circular badge used for a player everywhere (topbar, scorebar,
   game cards): a user-chosen **emoji** on a user-chosen **background color**, picked from the
   small curated sets in `shared/src/avatar.ts`. Falls back to a hash-derived initial + color

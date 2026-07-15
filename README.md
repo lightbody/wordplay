@@ -103,8 +103,11 @@ proxy's enforced filters — including that no view can reach `game_secrets`.
    `plightbo-wordplay-electric`. Backend secrets: `DATABASE_URL` (pooled),
    `WORKOS_JWKS_URL`, `ELECTRIC_URL=https://plightbo-wordplay-electric.fly.dev`,
    `ALLOWED_ORIGIN=https://wordplay.lightbody.net`,
-   `PUBLIC_APP_URL=https://wordplay.lightbody.net`. Electric secret:
-   `DATABASE_URL` (direct).
+   `PUBLIC_APP_URL=https://wordplay.lightbody.net`,
+   `VAPID_PUBLIC_KEY`/`VAPID_PRIVATE_KEY` (generate with
+   `npx web-push generate-vapid-keys`, production's own pair — don't reuse
+   the preview or dev ones), `VAPID_SUBJECT=mailto:push@wordplay.lightbody.net`.
+   Electric secret: `DATABASE_URL` (direct).
 4. **Cloudflare Pages** — create project `wordplay-frontend` with an empty
    build config (Actions builds and uploads). Add the custom domain
    `wordplay.lightbody.net`, and set the project env var
@@ -112,7 +115,10 @@ proxy's enforced filters — including that no view can reach `game_secrets`.
    OG-preview Pages Function).
 5. **GitHub repo secrets**: `FLY_API_TOKEN`, `FLY_ORG`, `NEON_API_KEY`,
    `NEON_PROJECT_ID`, `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`,
-   `VITE_WORKOS_CLIENT_ID`, `WORKOS_JWKS_URL`.
+   `VITE_WORKOS_CLIENT_ID`, `WORKOS_JWKS_URL`, `VAPID_PREVIEW_PUBLIC_KEY`,
+   `VAPID_PREVIEW_PRIVATE_KEY` (one shared keypair for every PR preview
+   stack — `preview.yml` sets it on each ephemeral backend app; generate
+   once with `npx web-push generate-vapid-keys`).
 
 Every pull request gets an isolated preview stack (a Neon branch plus
 dedicated backend/Electric Fly apps and a Pages preview), torn down on
@@ -140,9 +146,24 @@ resignation. The end-of-game summary shows final scores (with any unused-
 tile adjustment), per-player stats (best/average/lowest move, bingos), and
 a chart of both scores over the course of the game.
 
+## Push notifications
+
+The app is an installable PWA (manifest + service worker) with Web Push for
+"it's your turn" / challenge / invite-accepted alerts — no 3rd-party push
+provider, just the self-hosted `web-push` package and a VAPID keypair per
+environment. On iOS this only works once the site's been added to the home
+screen via Share → Add to Home Screen (Safari has no push for a plain
+browser tab); Android/desktop Chrome work without installing. See
+`backend/src/push.ts`, `backend/src/routes/push.ts`, and
+`frontend/src/push.ts` for the implementation, and
+`frontend/scripts/generate-icons.mjs` / `generate-manifest.mjs` for how the
+icon set and manifest are built (including the visually distinct green
+variant PR previews get, so an installed preview build is never confused
+with production).
+
 ## Notes
 
 - The `og.png` share image is a plain gradient placeholder — replace it
   with a designed 1200×630 image whenever you like.
-- No push/browser notifications and no native app yet; the bearer-token
-  JSON API keeps the native-app door open.
+- The bearer-token JSON API keeps the native-app door open, if that's ever
+  wanted alongside the PWA.

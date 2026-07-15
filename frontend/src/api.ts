@@ -22,7 +22,12 @@ export class ApiError extends Error {
 async function request<T>(path: string, token: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     headers: {
-      "Content-Type": "application/json",
+      // Only declare a JSON body when we're actually sending one -- Fastify's
+      // JSON body parser rejects a request that claims Content-Type:
+      // application/json but has an empty body (e.g. the bodyless POST/DELETE
+      // calls like acceptFriend/removeFriend/createInvite), even though no
+      // body was intended.
+      ...(init?.body !== undefined ? { "Content-Type": "application/json" } : {}),
       Authorization: `Bearer ${token}`,
     },
     ...init,
@@ -102,6 +107,20 @@ export function createApi(token: string) {
 
     acceptInvite: (inviteToken: string) =>
       request<{ game_id: string }>(`/invites/${inviteToken}/accept`, token, { method: "POST" }),
+
+    getVapidPublicKey: () => request<{ public_key: string }>("/push/vapid-public-key", token),
+
+    subscribePush: (subscription: { endpoint: string; keys: { p256dh: string; auth: string } }) =>
+      request<void>("/me/push-subscriptions", token, {
+        method: "POST",
+        body: JSON.stringify(subscription),
+      }),
+
+    unsubscribePush: (endpoint: string) =>
+      request<void>("/me/push-subscriptions", token, {
+        method: "DELETE",
+        body: JSON.stringify({ endpoint }),
+      }),
 
     getFriendLink: () => request<{ token: string; url: string }>("/friends/link", token),
 

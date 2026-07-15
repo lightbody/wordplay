@@ -26,7 +26,7 @@ export function GameList() {
   const profile = useProfile();
   const { setProfile } = useProfileContext();
   const getApi = useApi();
-  const { signOut, user } = useAuth();
+  const { signOut, user, getAccessToken } = useAuth();
   const navigate = useNavigate();
   const { data: games, isLoading } = useGamesShape();
   const { data: friends } = useFriendsShape();
@@ -98,6 +98,7 @@ export function GameList() {
           }}
           onFriends={() => navigate("/friends")}
           onSignOut={() => signOut()}
+          getAccessToken={getAccessToken}
         />
       </header>
 
