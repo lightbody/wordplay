@@ -7,15 +7,15 @@
        already apply their own icon mask, so we lean into that instead of
        drawing a second one on top of it. -->
   <rect width="512" height="512" fill="#ffffff"/>
-  <rect x="0" y="0" width="251" height="251" fill="#eeedeb"/>
-  <rect x="261" y="0" width="251" height="251" fill="#d8dfee"/>
-  <rect x="0" y="261" width="251" height="251" fill="#dde7d0"/>
-  <rect x="261" y="261" width="251" height="251" fill="#eeedeb"/>
+  <rect x="0" y="0" width="249.35" height="249.35" fill="#eeedeb"/>
+  <rect x="262.65" y="0" width="249.35" height="249.35" fill="#c4cbda"/>
+  <rect x="0" y="262.65" width="249.35" height="249.35" fill="#c9d3bc"/>
+  <rect x="262.65" y="262.65" width="249.35" height="249.35" fill="#eeedeb"/>
 
   <!-- Cast shadow for the tile below, offset in canvas space rather than
        the tile's own rotated local space, so it reads as light falling on
        a dropped object instead of spinning along with it. -->
-  <g transform="translate(264,266) rotate(-9)">
+  <g transform="translate(264,266) rotate(-9) scale(1.2)">
     <path
       d="M-71,-128 L128,-128 L128,71 A57,57 0 0 1 71,128 L-128,128 L-128,-71 A57,57 0 0 1 -71,-128 Z"
       fill="#000000"
@@ -25,8 +25,10 @@
 
   <!-- The tile itself, mid-drop onto the intersection: the app's real
        asymmetric tile radius (App.css .tile is "10px 0 10px 0") and
-       tile-board blue, tilted as if just dragged into place. -->
-  <g transform="translate(256,256) rotate(-9)">
+       tile-board blue, tilted as if just dragged into place. scale(1.2)
+       grows the whole tile (shape, letter, and value together) uniformly
+       around its own local origin, applied before the rotate/translate. -->
+  <g transform="translate(256,256) rotate(-9) scale(1.2)">
     <path
       d="M-71,-128 L128,-128 L128,71 A57,57 0 0 1 71,128 L-128,128 L-128,-71 A57,57 0 0 1 -71,-128 Z"
       fill="#4076c5"

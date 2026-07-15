@@ -7,12 +7,12 @@
        confused with blue even for most color-vision deficiencies), so a PR
        preview installed alongside the real app is never mistaken for it. -->
   <rect width="512" height="512" fill="#ffffff"/>
-  <rect x="0" y="0" width="251" height="251" fill="#eeedeb"/>
-  <rect x="261" y="0" width="251" height="251" fill="#d8dfee"/>
-  <rect x="0" y="261" width="251" height="251" fill="#dde7d0"/>
-  <rect x="261" y="261" width="251" height="251" fill="#eeedeb"/>
+  <rect x="0" y="0" width="249.35" height="249.35" fill="#eeedeb"/>
+  <rect x="262.65" y="0" width="249.35" height="249.35" fill="#c4cbda"/>
+  <rect x="0" y="262.65" width="249.35" height="249.35" fill="#c9d3bc"/>
+  <rect x="262.65" y="262.65" width="249.35" height="249.35" fill="#eeedeb"/>
 
-  <g transform="translate(264,266) rotate(-9)">
+  <g transform="translate(264,266) rotate(-9) scale(1.2)">
     <path
       d="M-71,-128 L128,-128 L128,71 A57,57 0 0 1 71,128 L-128,128 L-128,-71 A57,57 0 0 1 -71,-128 Z"
       fill="#000000"
@@ -20,7 +20,7 @@
     />
   </g>
 
-  <g transform="translate(256,256) rotate(-9)">
+  <g transform="translate(256,256) rotate(-9) scale(1.2)">
     <path
       d="M-71,-128 L128,-128 L128,71 A57,57 0 0 1 71,128 L-128,128 L-128,-71 A57,57 0 0 1 -71,-128 Z"
       fill="#dda426"
