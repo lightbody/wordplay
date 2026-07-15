@@ -555,6 +555,20 @@ textarea {
 .account-menu-error {
   color: var(--error);
 }
+.install-steps-intro {
+  text-align: left;
+  margin-bottom: var(--space-4);
+}
+.install-steps {
+  text-align: left;
+  margin: 0;
+  padding-left: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  font: var(--text-body-sm);
+  color: var(--text-primary);
+}
 
 .content {
   padding: 1rem;
