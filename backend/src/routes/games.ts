@@ -191,5 +191,4 @@ export function registerGameRoutes(app: FastifyInstance, ctx: AppContext): void 
 
     return reply.send({ game, rack, moves: movesRes.rows });
   });
-
 }

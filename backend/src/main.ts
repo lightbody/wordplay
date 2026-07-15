@@ -10,6 +10,7 @@ import { Pool } from "pg";
 import { loadDictionaryFromText } from "@wordplay/shared";
 import type { AppContext } from "./context.js";
 import { runMigrations } from "./migrate.js";
+import { configureWebPush } from "./push.js";
 import { buildApp } from "./server.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -33,6 +34,10 @@ async function main(): Promise<void> {
   const publicAppUrl = process.env.PUBLIC_APP_URL ?? "http://localhost:5173";
   const workosJwksUrl = requireEnv("WORKOS_JWKS_URL");
   const electricUrl = requireEnv("ELECTRIC_URL");
+  const vapidPublicKey = requireEnv("VAPID_PUBLIC_KEY");
+  const vapidPrivateKey = requireEnv("VAPID_PRIVATE_KEY");
+  const vapidSubject = requireEnv("VAPID_SUBJECT");
+  configureWebPush({ publicKey: vapidPublicKey, privateKey: vapidPrivateKey, subject: vapidSubject });
 
   const jwksRes = await fetch(workosJwksUrl, { signal: AbortSignal.timeout(30_000) });
   const jwksJson = (await jwksRes.json()) as { keys: Array<Record<string, unknown>> };
@@ -72,6 +77,7 @@ async function main(): Promise<void> {
     dictionaryHash,
     dictionarySize: Buffer.byteLength(dictionaryText, "utf8"),
     dictionaryWordCount: dictionary.size,
+    vapidPublicKey,
   };
 
   const app = buildApp(ctx, allowedOrigin);

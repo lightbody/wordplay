@@ -30,6 +30,7 @@ function Harness() {
             }}
             onFriends={() => alert("friends")}
             onSignOut={() => alert("sign out")}
+            getAccessToken={() => Promise.resolve("mock-token")}
           />
         </header>
         <div className="content">

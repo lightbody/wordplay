@@ -86,6 +86,7 @@ beforeAll(async () => {
     dictionaryHash: "test-hash",
     dictionarySize: 0,
     dictionaryWordCount: 3,
+    vapidPublicKey: "test-vapid-public-key",
   };
   app = buildApp(ctx, "http://localhost:5173");
   await app.ready();
@@ -132,11 +133,15 @@ async function patch(path: string, sub: string, body: unknown) {
   return { status: res.statusCode, body: res.body.length > 0 ? JSON.parse(res.body) : null };
 }
 
-async function del(path: string, sub: string) {
+async function del(path: string, sub: string, body?: unknown) {
   const res = await app.inject({
     method: "DELETE",
     url: path,
-    headers: { authorization: `Bearer ${await token(privateKey, sub)}` },
+    headers:
+      body !== undefined
+        ? { authorization: `Bearer ${await token(privateKey, sub)}`, "content-type": "application/json" }
+        : { authorization: `Bearer ${await token(privateKey, sub)}` },
+    payload: body !== undefined ? JSON.stringify(body) : undefined,
   });
   return { status: res.statusCode, body: res.body.length > 0 ? JSON.parse(res.body) : null };
 }
@@ -302,6 +307,48 @@ describe("wordplay backend API", () => {
     await onboard("third", "Third");
     const stolen = await post(`/invites/${itoken}/accept`, "third", {});
     expect(stolen.status).toBe(409);
+  });
+
+  it("push subscription management", async () => {
+    await onboard("subscriber", "Subscriber");
+    await onboard("other", "Other");
+
+    const publicKey = await get("/push/vapid-public-key");
+    expect(publicKey.status).toBe(200);
+    expect(publicKey.body.public_key).toBe("test-vapid-public-key");
+
+    const bad = await post("/me/push-subscriptions", "subscriber", { endpoint: "https://push.example/1" });
+    expect(bad.status).toBe(400);
+
+    const sub = {
+      endpoint: "https://push.example/1",
+      keys: { p256dh: "p256dh-value", auth: "auth-value" },
+    };
+    const created = await post("/me/push-subscriptions", "subscriber", sub);
+    expect(created.status).toBe(204);
+
+    const rows1 = await pool.query("SELECT user_id FROM push_subscriptions WHERE endpoint = $1", [sub.endpoint]);
+    expect(rows1.rows).toHaveLength(1);
+    expect(rows1.rows[0].user_id).toBe("subscriber");
+
+    // Re-subscribing the same endpoint (e.g. a shared/reused browser) upserts
+    // rather than duplicating, reassigning ownership.
+    const reassigned = await post("/me/push-subscriptions", "other", sub);
+    expect(reassigned.status).toBe(204);
+    const rows2 = await pool.query("SELECT user_id FROM push_subscriptions WHERE endpoint = $1", [sub.endpoint]);
+    expect(rows2.rows).toHaveLength(1);
+    expect(rows2.rows[0].user_id).toBe("other");
+
+    // Deleting as the wrong owner is a silent no-op, not an error or leak.
+    const wrongDelete = await del("/me/push-subscriptions", "subscriber", { endpoint: sub.endpoint });
+    expect(wrongDelete.status).toBe(204);
+    const stillThere = await pool.query("SELECT 1 FROM push_subscriptions WHERE endpoint = $1", [sub.endpoint]);
+    expect(stillThere.rows).toHaveLength(1);
+
+    const deleted = await del("/me/push-subscriptions", "other", { endpoint: sub.endpoint });
+    expect(deleted.status).toBe(204);
+    const gone = await pool.query("SELECT 1 FROM push_subscriptions WHERE endpoint = $1", [sub.endpoint]);
+    expect(gone.rows).toHaveLength(0);
   });
 
   it("friend links: get-or-create, preview, accept, regenerate, remove", async () => {

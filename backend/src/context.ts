@@ -14,4 +14,6 @@ export interface AppContext {
   dictionaryHash: string;
   dictionarySize: number;
   dictionaryWordCount: number;
+  /** Not secret — the client needs it to call pushManager.subscribe(). */
+  vapidPublicKey: string;
 }

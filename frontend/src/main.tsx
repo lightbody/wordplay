@@ -4,6 +4,7 @@ import { BrowserRouter } from "react-router-dom";
 import { AuthKitProvider } from "@workos-inc/authkit-react";
 import App from "./App";
 import { getDictionary } from "./dictionary";
+import { registerServiceWorker } from "./push";
 import { ThemeProvider } from "./theme";
 import "./App.css";
 
@@ -15,6 +16,11 @@ if (!clientId) {
 // Warm the dictionary cache as early as possible so it's ready before any
 // game screen mounts, without blocking initial render on it.
 void getDictionary();
+
+// Registering (unlike subscribing) doesn't prompt for permission, so it's
+// safe to do unconditionally on boot -- the service worker is then ready by
+// the time the user taps "Enable notifications".
+void registerServiceWorker();
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>

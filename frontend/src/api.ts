@@ -108,6 +108,20 @@ export function createApi(token: string) {
     acceptInvite: (inviteToken: string) =>
       request<{ game_id: string }>(`/invites/${inviteToken}/accept`, token, { method: "POST" }),
 
+    getVapidPublicKey: () => request<{ public_key: string }>("/push/vapid-public-key", token),
+
+    subscribePush: (subscription: { endpoint: string; keys: { p256dh: string; auth: string } }) =>
+      request<void>("/me/push-subscriptions", token, {
+        method: "POST",
+        body: JSON.stringify(subscription),
+      }),
+
+    unsubscribePush: (endpoint: string) =>
+      request<void>("/me/push-subscriptions", token, {
+        method: "DELETE",
+        body: JSON.stringify({ endpoint }),
+      }),
+
     getFriendLink: () => request<{ token: string; url: string }>("/friends/link", token),
 
     regenerateFriendLink: () =>
