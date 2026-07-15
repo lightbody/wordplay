@@ -110,6 +110,9 @@ export function AccountMenu({
   const { preference, setPreference } = useTheme();
   const { enabled: soundEnabled, setEnabled: setSoundEnabled } = useSound();
   const rootRef = useRef<HTMLDivElement>(null);
+  // Mirrors NotificationsSection's own null-check, so the divider after it collapses too when
+  // that section renders nothing (non-iOS browsers without push support).
+  const showNotifications = needsHomeScreenInstall() || isPushSupported();
 
   useEffect(() => {
     if (!open) return;
@@ -214,7 +217,7 @@ export function AccountMenu({
 
           <NotificationsSection getAccessToken={getAccessToken} />
 
-          <div className="account-menu-divider" />
+          {showNotifications && <div className="account-menu-divider" />}
 
           <button
             type="button"
