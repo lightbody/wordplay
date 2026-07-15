@@ -5,18 +5,16 @@
   <rect width="512" height="512" fill="#fffdf9"/>
 
   <path
-    d="M146,56 L456,56 L456,366 A90,90 0 0 1 366,456 L56,456 L56,146 A90,90 0 0 1 146,56 Z"
+    d="M162,86 L426,86 L426,350 A76,76 0 0 1 350,426 L86,426 L86,162 A76,76 0 0 1 162,86 Z"
     fill="#3f6b4c"
   />
 
   <path
-    d="M112,196 L184,326 L256,238 L328,326 L400,196"
+    d="M161,141 L208.5,371 L256,238 L303.5,371 L351,141"
     fill="none"
     stroke="#ffffff"
-    stroke-width="44"
+    stroke-width="34"
     stroke-linecap="round"
-    stroke-linejoin="round"
+    stroke-linejoin="miter"
   />
-
-  <rect x="350" y="350" width="62" height="62" rx="14" fill="#e4602f"/>
 </svg>
