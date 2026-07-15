@@ -21,8 +21,9 @@ of chrome, update the matching entry here in the same change.
   `.theme-segment`), a **sound segment** (On/Off, also `.theme-segment`, backed by `sound.tsx`'s
   `useSound()`) toggling the tile-drop click and other future sound effects, a
   **notifications row** (`.account-menu-row`, a `Switch` for push notifications — or, on iOS
-  outside standalone mode, an **Add to Home Screen hint** telling the player Safari only
-  supports notifications for an installed PWA), and Sign out.
+  outside standalone mode, a look-alike toggle that never actually subscribes and instead opens
+  the **Home Screen install dialog** (`HomeScreenInstallDialog.tsx`), walking the player through
+  Safari's Share → Add to Home Screen flow, the only way iOS allows notifications), and Sign out.
 - **Avatar** (`Avatar.tsx`) — the circular badge used for a player everywhere (topbar, scorebar,
   game cards): a user-chosen **emoji** on a user-chosen **background color**, picked from the
   small curated sets in `shared/src/avatar.ts`. Falls back to a hash-derived initial + color
@@ -157,6 +158,10 @@ over a dimmed/blurred backdrop, with an optional title and an **actions row** of
   (`.avatar-color-row`), from the sets in `shared/src/avatar.ts`. Opened from the **Edit
   avatar** row in the account menu; Save calls `PATCH /me` and updates the profile everywhere
   the avatar is shown, including on any of the user's in-progress opponents' game screens.
+- **Home Screen install dialog** (`HomeScreenInstallDialog.tsx`) — "Turn on notifications": a
+  numbered `.install-steps` list walking an iOS Safari player through Share → Add to Home
+  Screen, the only way iOS allows Web Push. Opened by tapping the look-alike **notifications
+  row** toggle in the account menu when running as a plain iOS Safari tab (see Account menu).
 - **Share panel** (`SharePanel.tsx`, `.share-panel`) — not a Dialog, but an inline card shown
   in place of the board during the *sharing* phase: a "Share invite link" button (native share
   sheet via `share.ts`'s `shareOrCopy`, or copy-link with a **toast**). Only open (no chosen

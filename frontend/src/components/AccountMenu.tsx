@@ -10,6 +10,7 @@ import { useSound } from "../sound";
 import { useTheme, type ThemePreference } from "../theme";
 import { Avatar } from "./Avatar";
 import { AvatarEditorDialog } from "./AvatarEditorDialog";
+import { HomeScreenInstallDialog } from "./HomeScreenInstallDialog";
 import { Switch } from "./Switch";
 
 const THEME_OPTIONS: { value: ThemePreference; label: string }[] = [
@@ -23,11 +24,15 @@ const SOUND_OPTIONS: { value: boolean; label: string }[] = [
   { value: false, label: "Off" },
 ];
 
-/** "Enable notifications" toggle, or an iOS-specific "add to home screen first" hint. */
+/** "Enable notifications" toggle, or -- for iOS Safari outside Home Screen install, where the
+ *  Notification/PushManager globals don't even exist -- a look-alike toggle that opens install
+ *  instructions instead of subscribing. Order matters: the iOS check must run before
+ *  isPushSupported(), since that check itself reports unsupported in a plain iOS Safari tab. */
 function NotificationsSection({ getAccessToken }: { getAccessToken: () => Promise<string> }) {
   const [subscribed, setSubscribed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showInstallHelp, setShowInstallHelp] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -39,19 +44,19 @@ function NotificationsSection({ getAccessToken }: { getAccessToken: () => Promis
     };
   }, []);
 
-  if (!isPushSupported()) return null;
-
   if (needsHomeScreenInstall()) {
     return (
       <>
-        <div className="account-menu-label">Notifications</div>
-        <p className="account-menu-hint">
-          Add Wordplay to your Home Screen (Share &rarr; Add to Home Screen) to turn on
-          notifications &mdash; Safari only supports them for installed apps.
-        </p>
+        <div className="account-menu-row">
+          <span id="notifications-label">Notifications</span>
+          <Switch checked={false} onChange={() => setShowInstallHelp(true)} aria-label="Enable notifications" />
+        </div>
+        {showInstallHelp && <HomeScreenInstallDialog onClose={() => setShowInstallHelp(false)} />}
       </>
     );
   }
+
+  if (!isPushSupported()) return null;
 
   async function handleChange(next: boolean) {
     setBusy(true);
