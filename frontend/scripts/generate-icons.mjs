@@ -8,6 +8,15 @@
 // "any" and "maskable" manifest purposes; there's no separate maskable
 // source to keep in sync.
 //
+// The "W"/value text uses the real in-game tile font (Figtree Bold, same
+// as App.css's .tile-letter/.tile-value) rather than a hand-drawn shape.
+// Google Fonts' @import in App.css only works in a browser page context, so
+// for both this offline rasterization step and the standalone favicon.svg
+// (loaded by browser chrome outside the page, same problem), the actual
+// font file (src/assets/fonts/figtree-bold.ttf) is embedded as a base64
+// @font-face data URI -- self-contained, renders identically everywhere,
+// no dependency on Figtree being installed on whatever machine runs this.
+//
 // Usage: node scripts/generate-icons.mjs
 
 import { readFile, writeFile, mkdir } from "node:fs/promises";
@@ -20,23 +29,30 @@ const root = path.join(__dirname, "..");
 const assetsDir = path.join(root, "src", "assets");
 const iconsDir = path.join(root, "public", "icons");
 
-async function render(svgPath, size, outPath) {
-  const svg = await readFile(svgPath);
-  await sharp(svg).resize(size, size).png().toFile(outPath);
+async function embedFont(svgPath) {
+  const svg = await readFile(svgPath, "utf8");
+  const fontPath = path.join(assetsDir, "fonts", "figtree-bold.ttf");
+  const fontBase64 = (await readFile(fontPath)).toString("base64");
+  const style = `<defs><style>@font-face { font-family: 'Figtree'; font-weight: 700; src: url(data:font/ttf;base64,${fontBase64}) format('truetype'); }</style></defs>`;
+  return svg.replace(/(<svg[^>]*>)/, `$1${style}`);
+}
+
+async function render(svg, size, outPath) {
+  await sharp(Buffer.from(svg)).resize(size, size).png().toFile(outPath);
   console.log(`wrote ${path.relative(root, outPath)} (${size}x${size})`);
 }
 
-async function renderSet(source, dir) {
+async function renderSet(svg, dir) {
   await mkdir(dir, { recursive: true });
-  await render(source, 192, path.join(dir, "icon-192.png"));
-  await render(source, 512, path.join(dir, "icon-512.png"));
-  await render(source, 192, path.join(dir, "maskable-192.png"));
-  await render(source, 512, path.join(dir, "maskable-512.png"));
+  await render(svg, 192, path.join(dir, "icon-192.png"));
+  await render(svg, 512, path.join(dir, "icon-512.png"));
+  await render(svg, 192, path.join(dir, "maskable-192.png"));
+  await render(svg, 512, path.join(dir, "maskable-512.png"));
 }
 
 async function main() {
-  const icon = path.join(assetsDir, "icon.svg");
-  const iconPreview = path.join(assetsDir, "icon-preview.svg");
+  const icon = await embedFont(path.join(assetsDir, "icon.svg"));
+  const iconPreview = await embedFont(path.join(assetsDir, "icon-preview.svg"));
 
   await renderSet(icon, iconsDir);
   // index.html's <link rel="apple-touch-icon"> is a single static tag (not
@@ -47,7 +63,7 @@ async function main() {
   await render(icon, 180, path.join(root, "public", "apple-touch-icon.png"));
   await render(icon, 32, path.join(root, "public", "favicon-32.png"));
   await render(icon, 16, path.join(root, "public", "favicon-16.png"));
-  await writeFile(path.join(root, "public", "favicon.svg"), await readFile(icon));
+  await writeFile(path.join(root, "public", "favicon.svg"), icon);
   console.log("wrote public/favicon.svg");
 }
 
