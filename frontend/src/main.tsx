@@ -6,6 +6,7 @@ import App from "./App";
 import { getDictionary } from "./dictionary";
 import { registerServiceWorker } from "./push";
 import { ThemeProvider } from "./theme";
+import { SoundProvider } from "./sound";
 import "./App.css";
 
 const clientId = import.meta.env.VITE_WORKOS_CLIENT_ID;
@@ -25,19 +26,21 @@ void registerServiceWorker();
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <ThemeProvider>
-      {/* Preserve the current path (not just the origin) so signing in from
-          a deep link like /friend/:token or /invite/:token returns the user
-          to that same page to complete the accept, instead of dropping them
-          on "/" and losing the pending token. */}
-      <AuthKitProvider
-        clientId={clientId}
-        redirectUri={window.location.origin + window.location.pathname}
-        devMode={true}
-      >
-        <BrowserRouter>
-          <App />
-        </BrowserRouter>
-      </AuthKitProvider>
+      <SoundProvider>
+        {/* Preserve the current path (not just the origin) so signing in from
+            a deep link like /friend/:token or /invite/:token returns the user
+            to that same page to complete the accept, instead of dropping them
+            on "/" and losing the pending token. */}
+        <AuthKitProvider
+          clientId={clientId}
+          redirectUri={window.location.origin + window.location.pathname}
+          devMode={true}
+        >
+          <BrowserRouter>
+            <App />
+          </BrowserRouter>
+        </AuthKitProvider>
+      </SoundProvider>
     </ThemeProvider>
   </React.StrictMode>,
 );

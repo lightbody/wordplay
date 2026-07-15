@@ -8,6 +8,7 @@
 import { useState } from "react";
 import { createRoot } from "react-dom/client";
 import { ThemeProvider } from "./theme";
+import { SoundProvider } from "./sound";
 import { AccountMenu } from "./components/AccountMenu";
 import "./App.css";
 
@@ -16,27 +17,29 @@ function Harness() {
   const [avatarColor, setAvatarColor] = useState("coral-vivid");
   return (
     <ThemeProvider>
-      <div className="app-page">
-        <header className="topbar">
-          <span className="wordmark wordmark-sm">Wordplay</span>
-          <AccountMenu
-            username="PSquad32"
-            email="patrick@lightbody.net"
-            avatarEmoji={avatarEmoji}
-            avatarColor={avatarColor}
-            onAvatarSave={async (emoji, color) => {
-              setAvatarEmoji(emoji);
-              setAvatarColor(color);
-            }}
-            onFriends={() => alert("friends")}
-            onSignOut={() => alert("sign out")}
-            getAccessToken={() => Promise.resolve("mock-token")}
-          />
-        </header>
-        <div className="content">
-          <button className="btn btn-primary btn-lg btn-block">+ New game</button>
+      <SoundProvider>
+        <div className="app-page">
+          <header className="topbar">
+            <span className="wordmark wordmark-sm">Wordplay</span>
+            <AccountMenu
+              username="PSquad32"
+              email="patrick@lightbody.net"
+              avatarEmoji={avatarEmoji}
+              avatarColor={avatarColor}
+              onAvatarSave={async (emoji, color) => {
+                setAvatarEmoji(emoji);
+                setAvatarColor(color);
+              }}
+              onFriends={() => alert("friends")}
+              onSignOut={() => alert("sign out")}
+              getAccessToken={() => Promise.resolve("mock-token")}
+            />
+          </header>
+          <div className="content">
+            <button className="btn btn-primary btn-lg btn-block">+ New game</button>
+          </div>
         </div>
-      </div>
+      </SoundProvider>
     </ThemeProvider>
   );
 }

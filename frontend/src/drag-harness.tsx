@@ -24,6 +24,8 @@ import { BoardViewport } from "./components/BoardViewport";
 import { Rack } from "./components/Rack";
 import { Tile } from "./components/Tile";
 import { MoreIcon, RecallIcon, SwapIcon } from "./components/icons";
+import { SoundProvider, useSound } from "./sound";
+import { playSound } from "./sounds";
 import "./App.css";
 
 type DropTarget = { type: "board"; row: number; col: number; valid: boolean } | { type: "rack"; index: number };
@@ -48,6 +50,7 @@ function orderCellsForCascade<T extends { row: number; col: number }>(cells: T[]
 const ACCEPT_ALL_DICTIONARY: Dictionary = { isWord: () => true, size: 0 };
 
 function Harness() {
+  const { enabled: soundEnabled, setEnabled: setSoundEnabled } = useSound();
   const rack = "HELLO?Z";
   const [order, setOrder] = useState<number[]>([0, 1, 2, 3, 4, 5, 6]);
   const [pending, setPending] = useState<PendingTile[]>([]);
@@ -255,6 +258,9 @@ function Harness() {
     setDropTarget(null);
     if (!info) return;
     const hit = dragHitTest(x, y);
+    if (hit && (hit.type === "rack" || hit.valid)) {
+      playSound("tileDrop", soundEnabled);
+    }
 
     if (hit?.type === "rack" && startOrder) {
       const from = startOrder.indexOf(info.rackIndex);
@@ -293,6 +299,15 @@ function Harness() {
         style={{ position: "fixed", top: 0, right: 0, fontSize: 10, background: "#fff", color: "#000", zIndex: 999 }}
       >
         order: {JSON.stringify(order)} | pending: {JSON.stringify(pending.map((p) => `${p.row},${p.col}=${p.letter}`))}
+        <label style={{ marginLeft: 8 }}>
+          <input
+            id="sound-toggle"
+            type="checkbox"
+            checked={soundEnabled}
+            onChange={(e) => setSoundEnabled(e.target.checked)}
+          />
+          sound
+        </label>
       </div>
       <div className="game-middle">
         <BoardViewport>
@@ -564,4 +579,6 @@ const scenarios: Record<string, JSX.Element> = {
   seams: <SeamHarness />,
 };
 
-createRoot(document.getElementById("root")!).render(scenarios[scenario ?? ""] ?? <Harness />);
+createRoot(document.getElementById("root")!).render(
+  <SoundProvider>{scenarios[scenario ?? ""] ?? <Harness />}</SoundProvider>,
+);

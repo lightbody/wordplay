@@ -6,6 +6,7 @@ import {
   subscribeToPush,
   unsubscribeFromPush,
 } from "../push";
+import { useSound } from "../sound";
 import { useTheme, type ThemePreference } from "../theme";
 import { Avatar } from "./Avatar";
 import { AvatarEditorDialog } from "./AvatarEditorDialog";
@@ -15,6 +16,11 @@ const THEME_OPTIONS: { value: ThemePreference; label: string }[] = [
   { value: "system", label: "System" },
   { value: "light", label: "Light" },
   { value: "dark", label: "Dark" },
+];
+
+const SOUND_OPTIONS: { value: boolean; label: string }[] = [
+  { value: true, label: "On" },
+  { value: false, label: "Off" },
 ];
 
 /** "Enable notifications" toggle, or an iOS-specific "add to home screen first" hint. */
@@ -97,6 +103,7 @@ export function AccountMenu({
   const [editingAvatar, setEditingAvatar] = useState(false);
   const [savingAvatar, setSavingAvatar] = useState(false);
   const { preference, setPreference } = useTheme();
+  const { enabled: soundEnabled, setEnabled: setSoundEnabled } = useSound();
   const rootRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -176,6 +183,22 @@ export function AccountMenu({
                 aria-checked={preference === opt.value}
                 className={preference === opt.value ? "active" : ""}
                 onClick={() => setPreference(opt.value)}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="account-menu-label">Sound</div>
+          <div className="theme-segment" role="radiogroup" aria-label="Sound">
+            {SOUND_OPTIONS.map((opt) => (
+              <button
+                key={String(opt.value)}
+                type="button"
+                role="radio"
+                aria-checked={soundEnabled === opt.value}
+                className={soundEnabled === opt.value ? "active" : ""}
+                onClick={() => setSoundEnabled(opt.value)}
               >
                 {opt.label}
               </button>
