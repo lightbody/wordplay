@@ -615,15 +615,23 @@ export function GameScreen() {
     applyOrderPreview(next);
   }
 
-  function endTileDrag(x: number, y: number) {
+  function endTileDrag() {
     const info = dragInfoRef.current;
     const startOrder = dragStartOrderRef.current;
+    // Commit to whatever target was last highlighted (the green/red outline
+    // the user actually saw), not a freshly recomputed hit test at the raw
+    // pointerup coordinates. A quick flick-and-release often ends a pixel or
+    // two past the last pointermove sample (touch/mouse don't reliably fire
+    // a move right before the up event), so re-hit-testing at that literal
+    // release point could land on a different cell -- or off the board
+    // entirely -- than what was just shown as the drop target, which read as
+    // the tile snapping back even though the highlighted cell was valid.
+    const hit = dropTarget;
     dragInfoRef.current = null;
     dragStartOrderRef.current = null;
     setDragActive(null);
     setDropTarget(null);
     if (!info) return;
-    const hit = dragHitTest(x, y);
     if (hit && (hit.type === "rack" || hit.valid)) {
       playSound("tileDrop", soundEnabled);
     }

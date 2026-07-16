@@ -249,15 +249,17 @@ function Harness() {
     applyOrderPreview(next);
   }
 
-  function endTileDrag(x: number, y: number) {
+  function endTileDrag() {
     const info = dragInfoRef.current;
     const startOrder = dragStartOrderRef.current;
+    // See GameScreen's endTileDrag: commit to the last-highlighted target
+    // rather than re-hit-testing the raw pointerup coordinates.
+    const hit = dropTarget;
     dragInfoRef.current = null;
     dragStartOrderRef.current = null;
     setDragActive(null);
     setDropTarget(null);
     if (!info) return;
-    const hit = dragHitTest(x, y);
     if (hit && (hit.type === "rack" || hit.valid)) {
       playSound("tileDrop", soundEnabled);
     }
