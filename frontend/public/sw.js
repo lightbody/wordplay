@@ -12,7 +12,7 @@ self.addEventListener("activate", (event) => {
 });
 
 self.addEventListener("push", (event) => {
-  let payload = { title: "Wordplay", body: "", url: "/" };
+  let payload = { title: "Wordplay", body: "", url: "/", tag: undefined, badgeCount: undefined };
   try {
     if (event.data) payload = { ...payload, ...event.data.json() };
   } catch {
@@ -21,12 +21,33 @@ self.addEventListener("push", (event) => {
   }
 
   event.waitUntil(
-    self.registration.showNotification(payload.title, {
-      body: payload.body,
-      icon: "/icons/icon-192.png",
-      badge: "/icons/icon-192.png",
-      data: { url: payload.url },
-    }),
+    (async () => {
+      await self.registration.showNotification(payload.title, {
+        body: payload.body,
+        icon: "/icons/icon-192.png",
+        badge: "/icons/icon-192.png",
+        data: { url: payload.url },
+        // Same tag as any other pending notification for this game replaces
+        // it in place instead of piling up a second one in the notification
+        // center; renotify makes sure that replacement still alerts (sound/
+        // vibration) rather than silently swapping unseen.
+        tag: payload.tag,
+        renotify: payload.tag !== undefined,
+      });
+
+      // Home Screen app icon badge -- number of games it's currently your
+      // turn in. Supported in a service worker context (no page needs to be
+      // open) since Chrome 108ish; guard for browsers without it.
+      if (typeof payload.badgeCount === "number" && "setAppBadge" in self.navigator) {
+        try {
+          if (payload.badgeCount > 0) await self.navigator.setAppBadge(payload.badgeCount);
+          else await self.navigator.clearAppBadge();
+        } catch {
+          // Badging API can reject in some embedder contexts; the
+          // notification itself already shipped, so just skip the badge.
+        }
+      }
+    })(),
   );
 });
 

@@ -292,13 +292,15 @@ export function registerMoveRoutes(app: FastifyInstance, ctx: AppContext): void 
 
     if (result.notify) {
       const { opponentId, moverUsername } = result.notify;
-      const body =
-        result.moveType === "play" && result.mainWord && result.score > 0
-          ? `${moverUsername} played ${result.mainWord} for ${result.score} points — your turn`
+      const title =
+        result.moveType === "play" && result.mainWord
+          ? `${moverUsername} played ${result.mainWord}`
           : result.moveType === "swap"
-            ? `${moverUsername} swapped tiles — your turn`
-            : `${moverUsername} passed — your turn`;
-      await sendPush(ctx.pool, opponentId, { title: "Wordplay", body, url: `/games/${id}` });
+            ? `${moverUsername} swapped tiles`
+            : `${moverUsername} passed`;
+      const body =
+        result.moveType === "play" && result.score > 0 ? `${result.score} points — your turn` : "Your turn";
+      await sendPush(ctx.pool, opponentId, { title, body, url: `/games/${id}`, tag: `game-${id}` });
     }
 
     return reply.status(201).send(result.body);

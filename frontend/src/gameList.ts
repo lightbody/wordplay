@@ -27,3 +27,8 @@ export function canRematch(game: Game, profileId: string, friendIds: Set<string>
   const opponentId = opponentIdOf(game, profileId);
   return opponentId !== null && friendIds.has(opponentId);
 }
+
+/** How many active games it's currently my turn in -- drives the Home Screen app icon badge. */
+export function yourTurnCount(games: Game[], profileId: string): number {
+  return games.filter((g) => g.status === "active" && g.current_player_id === profileId).length;
+}

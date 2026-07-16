@@ -21,6 +21,27 @@ export interface PushPayload {
   body: string;
   /** Relative path to open on notification click, e.g. `/games/<id>`. */
   url: string;
+  /**
+   * Groups related notifications so a new one replaces (rather than piles
+   * on top of) an unread one for the same game -- e.g. `game-<id>`. See the
+   * Notifications API's `tag` option, which the service worker passes
+   * straight through to `showNotification`.
+   */
+  tag: string;
+}
+
+/** How many of `userId`'s active games it's currently their turn in -- the Home Screen app badge count. */
+async function yourTurnCount(pool: Pool, userId: string): Promise<number> {
+  try {
+    const { rows } = await pool.query<{ count: number }>(
+      "SELECT count(*)::int AS count FROM games WHERE status = 'active' AND current_player_id = $1",
+      [userId],
+    );
+    return rows[0]?.count ?? 0;
+  } catch (e) {
+    console.error("push: failed to compute badge count", e);
+    return 0;
+  }
 }
 
 /**
@@ -42,7 +63,11 @@ export async function sendPush(pool: Pool, userId: string, payload: PushPayload)
   }
   if (rows.length === 0) return;
 
-  const body = JSON.stringify(payload);
+  // badgeCount reflects current state at send time, not a per-event delta --
+  // computed here (not by callers) so it's always accurate regardless of
+  // which route triggered the notification.
+  const badgeCount = await yourTurnCount(pool, userId);
+  const body = JSON.stringify({ ...payload, badgeCount });
   await Promise.all(
     rows.map(async (row) => {
       try {

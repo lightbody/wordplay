@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { canRematch, opponentIdOf, visibleGame } from "./gameList";
+import { canRematch, opponentIdOf, visibleGame, yourTurnCount } from "./gameList";
 import type { Game } from "./types";
 
 function makeGame(overrides: Partial<Game>): Game {
@@ -77,5 +77,22 @@ describe("canRematch", () => {
 
   it("requires the opponent to still be a friend", () => {
     expect(canRematch(makeGame({ status: "finished" }), "me", new Set())).toBe(false);
+  });
+});
+
+describe("yourTurnCount", () => {
+  it("counts only active games where it's my turn", () => {
+    const games = [
+      makeGame({ id: "g1", status: "active", current_player_id: "me" }),
+      makeGame({ id: "g2", status: "active", current_player_id: "them" }),
+      makeGame({ id: "g3", status: "active", current_player_id: "me" }),
+      makeGame({ id: "g4", status: "finished", current_player_id: null }),
+      makeGame({ id: "g5", status: "awaiting_opponent", current_player_id: "me" }),
+    ];
+    expect(yourTurnCount(games, "me")).toBe(2);
+  });
+
+  it("is zero with no games", () => {
+    expect(yourTurnCount([], "me")).toBe(0);
   });
 });
