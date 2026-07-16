@@ -2,7 +2,9 @@ import { useEffect, useState } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import { useAuth } from "@workos-inc/authkit-react";
 import { ApiError, createApi } from "./api";
+import { yourTurnCount } from "./gameList";
 import { ProfileContext } from "./profile";
+import { useGamesShape } from "./shapes";
 import type { Profile } from "./types";
 import { Landing } from "./pages/Landing";
 import { Onboarding } from "./pages/Onboarding";
@@ -36,6 +38,11 @@ function AuthedApp() {
   const { getAccessToken } = useAuth();
   // undefined = loading, null = signed in but not onboarded
   const [profile, setProfile] = useState<Profile | null | undefined>(undefined);
+  // Mounted for the whole authenticated session (not just GameList) so the
+  // Home Screen app badge stays accurate even while looking at a single
+  // game -- e.g. finishing your turn there should clear the badge without
+  // needing to navigate back to the list first.
+  const { data: games } = useGamesShape();
 
   useEffect(() => {
     let cancelled = false;
@@ -52,6 +59,15 @@ function AuthedApp() {
       cancelled = true;
     };
   }, [getAccessToken]);
+
+  useEffect(() => {
+    // games undefined = shape still loading; wait rather than briefly
+    // flashing the badge to cleared before the real count is known.
+    if (!profile || games === undefined || !("setAppBadge" in navigator)) return;
+    const count = yourTurnCount(games, profile.id);
+    if (count > 0) navigator.setAppBadge(count).catch(() => {});
+    else navigator.clearAppBadge().catch(() => {});
+  }, [games, profile]);
 
   if (profile === undefined) return <Spinner full />;
 

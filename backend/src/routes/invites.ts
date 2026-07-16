@@ -118,9 +118,10 @@ export function registerInviteRoutes(app: FastifyInstance, ctx: AppContext): voi
 
     if (result.notify) {
       await sendPush(ctx.pool, result.notify.creatorId, {
-        title: "Wordplay",
-        body: `${result.notify.joinerUsername} accepted your invite!`,
+        title: `${result.notify.joinerUsername} accepted your invite!`,
+        body: "Tap to open the game",
         url: `/games/${result.game_id}`,
+        tag: `game-${result.game_id}`,
       });
     }
 
