@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 import dotenv from "dotenv";
 import { importJWK, type JWK, type KeyLike } from "jose";
 import { Pool } from "pg";
-import { loadDictionaryFromText } from "@wordplay/shared";
+import { buildTrieFromText, loadDictionaryFromText } from "@wordplay/shared";
 import type { AppContext } from "./context.js";
 import { runMigrations } from "./migrate.js";
 import { configureWebPush } from "./push.js";
@@ -66,6 +66,9 @@ async function main(): Promise<void> {
   const dictionaryText = await readFile(dictionaryPath, "utf8");
   const dictionaryHash = createHash("sha256").update(dictionaryText).digest("hex");
   const dictionary = loadDictionaryFromText(dictionaryText);
+  const trieStart = Date.now();
+  const wordTrie = buildTrieFromText(dictionaryText);
+  console.log(`built solver trie: ${wordTrie.nodeCount} nodes in ${Date.now() - trieStart}ms`);
 
   const ctx: AppContext = {
     pool,
@@ -73,6 +76,7 @@ async function main(): Promise<void> {
     electricUrl,
     publicAppUrl,
     dictionary,
+    wordTrie,
     dictionaryText,
     dictionaryHash,
     dictionarySize: Buffer.byteLength(dictionaryText, "utf8"),

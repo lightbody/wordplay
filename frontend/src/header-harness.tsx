@@ -1,11 +1,13 @@
 // Persistent harness for the streamlined in-game topbar (icon-only back
 // chevron), the redesigned ScoreBar (avatars, active-turn highlight,
-// tiles-remaining ring), and the unseen-tiles dialog it opens into. GameScreen
-// itself needs WorkOS auth + a live backend + ElectricSQL, none of which are
-// available in a Claude Code remote session, so this mounts the real
-// components with hand-built mock data instead. Not part of the app: not
-// imported from main.tsx, not linked from any route. `npm run dev` and
-// navigate to /header-harness.html. See CLAUDE.md.
+// tiles-remaining ring), the unseen-tiles dialog it opens into, and the
+// post-move rating feedback (rating chip on the last-move summary and the
+// expandable best-plays panel). GameScreen itself needs WorkOS auth + a live
+// backend + ElectricSQL, none of which are available in a Claude Code remote
+// session, so this mounts the real components with hand-built mock data
+// instead. Not part of the app: not imported from main.tsx, not linked from
+// any route. `npm run dev` and navigate to /header-harness.html. See
+// CLAUDE.md.
 import { useState } from "react";
 import { createRoot } from "react-dom/client";
 import { ThemeProvider } from "./theme";
@@ -13,7 +15,7 @@ import { ScoreBar } from "./components/ScoreBar";
 import { LastMoveSummary } from "./components/LastMoveSummary";
 import { UnseenTiles } from "./components/UnseenTiles";
 import { N } from "./engine";
-import type { Game } from "./types";
+import type { Game, PlayRating, TopMoveDto } from "./types";
 import "./App.css";
 
 const EMPTY_BOARD = ".".repeat(N * N);
@@ -55,11 +57,24 @@ function makeGame(overrides: Partial<Game>): Game {
   };
 }
 
+const RATINGS: PlayRating[] = ["wow", "great", "good", "meh"];
+
+// Mover-only best-play alternatives (in the app these come from the play
+// response, never from sync) — makes the mover's chip expandable.
+const TOP_MOVES: TopMoveDto[] = [
+  { tiles: [], words: [{ word: "QUIXOTIC", score: 96 }], score: 96, bingo: true },
+  { tiles: [], words: [{ word: "TOXIC", score: 44 }, { word: "OX", score: 18 }], score: 62, bingo: false },
+  { tiles: [], words: [{ word: "COT", score: 31 }], score: 31, bingo: false },
+];
+
 function Harness() {
   const [unseenOpen, setUnseenOpen] = useState(false);
+  // The mover's rating state, cycled via the harness controls below.
+  const [rating, setRating] = useState<PlayRating>("wow");
   const myTurn = makeGame({ current_player_id: "me", tiles_remaining: 82, board: EMPTY_BOARD });
   const theirTurn = makeGame({ current_player_id: "them", tiles_remaining: 12, opponent_username: "scottyfischer" });
   const myRack = "CARDES?";
+
   return (
     <ThemeProvider>
       <div className="app-page game-screen">
@@ -70,10 +85,27 @@ function Harness() {
         </header>
         <div className="game-middle">
           <ScoreBar game={myTurn} meCreator={true} myTurn={true} onOpenUnseenTiles={() => setUnseenOpen(true)} />
-          <LastMoveSummary summary={{ mine: true, word: "QUIXOTIC", points: 42 }} />
+          {/* Mover's own move: expandable chip (best-plays panel on tap). */}
+          <LastMoveSummary
+            summary={{ mine: true, word: "QUIXOTIC", points: 42, rating, moveId: `m-${rating}` }}
+            topMoves={TOP_MOVES}
+          />
           <div style={{ height: 1, background: "var(--border-subtle)" }} />
           <ScoreBar game={theirTurn} meCreator={true} myTurn={false} onOpenUnseenTiles={() => setUnseenOpen(true)} />
-          <LastMoveSummary summary={{ mine: false, word: "ZEBRA", points: 18 }} />
+          {/* Opponent's move as synced: rated chip, but inert (no alternatives). */}
+          <LastMoveSummary summary={{ mine: false, word: "ZEBRA", points: 18, rating: "great", moveId: "m2" }} />
+          <div style={{ height: 1, background: "var(--border-subtle)" }} />
+          {/* Pre-feature move rows have no rating: no chip. */}
+          <LastMoveSummary summary={{ mine: false, word: "LEGACY", points: 9, rating: null, moveId: "m3" }} />
+        </div>
+
+        {/* Harness-only controls: cycle the mover's rating. */}
+        <div style={{ display: "flex", gap: 8, padding: 12, justifyContent: "center" }}>
+          {RATINGS.map((r) => (
+            <button key={r} className="btn" data-rating={r} onClick={() => setRating(r)}>
+              {r}
+            </button>
+          ))}
         </div>
       </div>
       {unseenOpen && <UnseenTiles board={myTurn.board} rack={myRack} onClose={() => setUnseenOpen(false)} />}

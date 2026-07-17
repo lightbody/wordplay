@@ -1,4 +1,4 @@
-import type { Move, PlayedWord } from "./types";
+import type { Move, PlayedWord, PlayRating } from "./types";
 
 /**
  * Among the words formed by a single play, pick the one to name in the
@@ -16,6 +16,9 @@ export interface LastMoveSummary {
   mine: boolean;
   word: string;
   points: number;
+  /** How the play compared to the best available move; null for pre-feature rows. */
+  rating: PlayRating | null;
+  moveId: string;
 }
 
 /** Summarizes the most recent move, or undefined if it wasn't a word play. */
@@ -25,5 +28,11 @@ export function summarizeLastMove(moves: Move[], myUserId: string): LastMoveSumm
   if (last.move_type !== "play" || !last.words || last.words.length === 0) return undefined;
   const best = pickBestWord(last.words);
   if (!best) return undefined;
-  return { mine: last.user_id === myUserId, word: best.word, points: last.score };
+  return {
+    mine: last.user_id === myUserId,
+    word: best.word,
+    points: last.score,
+    rating: last.rating ?? null,
+    moveId: last.id,
+  };
 }

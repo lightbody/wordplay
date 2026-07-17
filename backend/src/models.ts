@@ -60,6 +60,10 @@ export interface Move {
   words: unknown;
   swap_count: number | null;
   score: number;
+  /** How the play compared to the best possible move; null for non-play moves and pre-feature rows. */
+  rating: "wow" | "great" | "good" | "meh" | null;
+  /** Score of the best move that was available; null whenever rating is null. */
+  best_score: number | null;
   created_at: string;
 }
 
@@ -73,7 +77,7 @@ export const GAME_COLUMNS =
   "opponent_adjustment, created_at, updated_at";
 
 export const MOVE_COLUMNS =
-  "id, game_id, user_id, move_number, move_type, tiles, words, swap_count, score, created_at";
+  "id, game_id, user_id, move_number, move_type, tiles, words, swap_count, score, rating, best_score, created_at";
 
 // --- request DTOs ---
 

@@ -8,13 +8,17 @@ import {
   adjustment,
   draw,
   evaluate,
+  findTopMoves,
   NotInRackError,
   RACK_SIZE,
+  ratePlay,
   swapTiles,
   validatePlay,
   winner,
   type EndReason,
   type PlayError,
+  type PlayRating,
+  type SolvedMove,
   type TurnOutcome,
 } from "@wordplay/shared";
 import { authenticate } from "../auth.js";
@@ -36,12 +40,14 @@ async function insertMove(
   words: string | null,
   swapCount: number | null,
   score: number,
+  rating: PlayRating | null,
+  bestScore: number | null,
 ): Promise<Move> {
   const { rows } = await client.query(
-    `INSERT INTO moves (game_id, user_id, move_number, move_type, tiles, words, swap_count, score)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+    `INSERT INTO moves (game_id, user_id, move_number, move_type, tiles, words, swap_count, score, rating, best_score)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
      RETURNING ${MOVE_COLUMNS}`,
-    [gameId, userId, moveNumber, moveType, tiles, words, swapCount, score],
+    [gameId, userId, moveNumber, moveType, tiles, words, swapCount, score, rating, bestScore],
   );
   return rows[0];
 }
@@ -118,7 +124,7 @@ export function registerMoveRoutes(app: FastifyInstance, ctx: AppContext): void 
         if (openingSolo) throw AppError.conflict("game_not_active");
         const winnerId = opponentId as string;
         const moveNumber = game.move_count + 1;
-        await insertMove(client, id, userId, moveNumber, "resign", null, null, null, 0);
+        await insertMove(client, id, userId, moveNumber, "resign", null, null, null, 0, null, null);
         const { rows } = await client.query(
           `UPDATE games SET status = 'finished', ended_reason = 'resigned',
                winner_id = $1, current_player_id = NULL, move_count = $2, updated_at = now()
@@ -158,9 +164,17 @@ export function registerMoveRoutes(app: FastifyInstance, ctx: AppContext): void 
       let wordsJson: string | null = null;
       let swapCount: number | null = null;
       let mainWord: string | null = null;
+      let rating: PlayRating | null = null;
+      let bestScore: number | null = null;
+      let topMoves: SolvedMove[] | null = null;
 
       if (moveReq.type === "play") {
         moveType = "play";
+        // The pre-move board and rack exist only here — the rack row is
+        // overwritten below and boards aren't snapshotted — so the best-move
+        // search has to happen now.
+        const preMoveBoard = board;
+        const preMoveRack = rack;
         const outcome = validatePlay(board, rack, moveReq.tiles, ctx.dictionary);
         if ("code" in outcome) throw playError(outcome);
         board = outcome.newBoard;
@@ -171,6 +185,18 @@ export function registerMoveRoutes(app: FastifyInstance, ctx: AppContext): void 
         tilesJson = JSON.stringify(moveReq.tiles);
         wordsJson = JSON.stringify(outcome.words);
         mainWord = outcome.words[0]?.word ?? null;
+        try {
+          const solveStart = Date.now();
+          const solved = findTopMoves(preMoveBoard, preMoveRack, ctx.wordTrie, 3);
+          const solveMs = Date.now() - solveStart;
+          if (solveMs > 500) req.log.warn({ solveMs, gameId: id }, "slow move solver");
+          bestScore = Math.max(solved.bestScore, outcome.total);
+          rating = ratePlay(outcome.total, bestScore);
+          topMoves = solved.top;
+        } catch (e) {
+          // Never block a legal move on a solver bug; the move just goes unrated.
+          req.log.error(e, "move solver failed; move proceeds unrated");
+        }
       } else if (moveReq.type === "swap") {
         moveType = "swap";
         const count = moveReq.letters.length;
@@ -219,7 +245,19 @@ export function registerMoveRoutes(app: FastifyInstance, ctx: AppContext): void 
       await client.query("UPDATE game_secrets SET bag = $1 WHERE game_id = $2", [bag, id]);
 
       const moveNumber = game.move_count + 1;
-      const mv = await insertMove(client, id, userId, moveNumber, moveType, tilesJson, wordsJson, swapCount, score);
+      const mv = await insertMove(
+        client,
+        id,
+        userId,
+        moveNumber,
+        moveType,
+        tilesJson,
+        wordsJson,
+        swapCount,
+        score,
+        rating,
+        bestScore,
+      );
 
       // Column names for the mover's score/rack-count.
       const scoreCol = amCreator ? "creator_score" : "opponent_score";
@@ -287,7 +325,22 @@ export function registerMoveRoutes(app: FastifyInstance, ctx: AppContext): void 
             }
           : null;
 
-      return { body: { game: updated, move: mv, rack, game_over: gameOver }, notify, moveType, mainWord, score };
+      // top_moves rides only on this response, never the moves table: the
+      // alternatives reveal rack letters the mover may still be holding, so
+      // only the mover — the one receiving this response — may see them.
+      return {
+        body: {
+          game: updated,
+          move: mv,
+          rack,
+          game_over: gameOver,
+          ...(topMoves !== null ? { top_moves: topMoves } : {}),
+        },
+        notify,
+        moveType,
+        mainWord,
+        score,
+      };
     });
 
     if (result.notify) {

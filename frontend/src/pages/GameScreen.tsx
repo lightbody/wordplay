@@ -10,7 +10,7 @@ import { useApi, useProfile } from "../profile";
 import { useSound } from "../sound";
 import { playSound } from "../sounds";
 import { useGamesShape, useMovesShape, useRacksShape } from "../shapes";
-import type { Game, Move, PendingTile, PlacedTileDto } from "../types";
+import type { Game, Move, PendingTile, PlacedTileDto, PlayRating, TopMoveDto } from "../types";
 import { outlineEdges } from "../wordOutline";
 import { summarizeLastMove } from "../lastMove";
 import { Board } from "../components/Board";
@@ -214,6 +214,13 @@ export function GameScreen() {
   // The opponent's just-landed word, highlighted yellow once every tile has
   // landed -- see Board's opponentHighlight prop.
   const [opponentHighlight, setOpponentHighlight] = useState<{ cells: Set<string>; fading: boolean } | null>(null);
+  // Rating + best-play alternatives for the move this session just
+  // submitted, from the play response. The alternatives never arrive via
+  // sync (they'd leak rack letters to the opponent), so they exist only
+  // here, only for the mover, and only until the next move replaces them.
+  const [playResult, setPlayResult] = useState<{ moveId: string; rating: PlayRating; topMoves: TopMoveDto[] } | null>(
+    null,
+  );
   const [blankFor, setBlankFor] = useState<{ row: number; col: number; rackIndex: number } | null>(null);
   const [swapOpen, setSwapOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
@@ -737,6 +744,12 @@ export function GameScreen() {
         fillCells.length * PLAY_CASCADE_STAGGER_MS + FILL_FADE_MS,
       );
 
+      // Rating feedback: the chip + best-plays panel (via playResult) stick
+      // around until the next move.
+      if (res.move.rating) {
+        setPlayResult({ moveId: res.move.id, rating: res.move.rating, topMoves: res.top_moves ?? [] });
+      }
+
       setPending([]);
       if (res.game_over) navigate(`/games/${id}/summary`);
     } catch (e) {
@@ -788,7 +801,10 @@ export function GameScreen() {
 
       <div className="game-middle">
         <ScoreBar game={game} meCreator={meCreator} myTurn={myTurn} onOpenUnseenTiles={() => setUnseenOpen(true)} />
-        <LastMoveSummary summary={lastMove} />
+        <LastMoveSummary
+          summary={lastMove}
+          topMoves={playResult && lastMove && playResult.moveId === lastMove.moveId ? playResult.topMoves : undefined}
+        />
 
         <BoardViewport>
           <Board
