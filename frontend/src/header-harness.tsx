@@ -1,16 +1,15 @@
 // Persistent harness for the streamlined in-game topbar (icon-only back
 // chevron), the redesigned ScoreBar (avatars, active-turn highlight,
 // tiles-remaining ring), the unseen-tiles dialog it opens into, and the
-// post-move rating feedback (rating chip on the last-move summary, the
-// expandable best-plays panel, and the rating flash overlay). GameScreen
-// itself needs WorkOS auth + a live backend + ElectricSQL, none of which are
-// available in a Claude Code remote session, so this mounts the real
-// components with hand-built mock data instead. Not part of the app: not
-// imported from main.tsx, not linked from any route. `npm run dev` and
-// navigate to /header-harness.html. See CLAUDE.md.
-import { useRef, useState } from "react";
+// post-move rating feedback (rating chip on the last-move summary and the
+// expandable best-plays panel). GameScreen itself needs WorkOS auth + a live
+// backend + ElectricSQL, none of which are available in a Claude Code remote
+// session, so this mounts the real components with hand-built mock data
+// instead. Not part of the app: not imported from main.tsx, not linked from
+// any route. `npm run dev` and navigate to /header-harness.html. See
+// CLAUDE.md.
+import { useState } from "react";
 import { createRoot } from "react-dom/client";
-import { AnimatePresence, motion } from "motion/react";
 import { ThemeProvider } from "./theme";
 import { ScoreBar } from "./components/ScoreBar";
 import { LastMoveSummary } from "./components/LastMoveSummary";
@@ -59,12 +58,6 @@ function makeGame(overrides: Partial<Game>): Game {
 }
 
 const RATINGS: PlayRating[] = ["wow", "great", "good", "meh"];
-const RATING_FLASH_LABELS: Record<PlayRating, string> = {
-  wow: "WOW!",
-  great: "Great!",
-  good: "Good",
-  meh: "Meh",
-};
 
 // Mover-only best-play alternatives (in the app these come from the play
 // response, never from sync) — makes the mover's chip expandable.
@@ -76,21 +69,11 @@ const TOP_MOVES: TopMoveDto[] = [
 
 function Harness() {
   const [unseenOpen, setUnseenOpen] = useState(false);
-  // The mover's rating state, cycled via the harness controls below; each
-  // change also replays the flash overlay exactly as submitPlay would.
+  // The mover's rating state, cycled via the harness controls below.
   const [rating, setRating] = useState<PlayRating>("wow");
-  const [flash, setFlash] = useState<PlayRating | null>(null);
-  const flashTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const myTurn = makeGame({ current_player_id: "me", tiles_remaining: 82, board: EMPTY_BOARD });
   const theirTurn = makeGame({ current_player_id: "them", tiles_remaining: 12, opponent_username: "scottyfischer" });
   const myRack = "CARDES?";
-
-  function showRating(r: PlayRating) {
-    setRating(r);
-    setFlash(r);
-    if (flashTimeoutRef.current) clearTimeout(flashTimeoutRef.current);
-    flashTimeoutRef.current = setTimeout(() => setFlash(null), 1500);
-  }
 
   return (
     <ThemeProvider>
@@ -114,27 +97,12 @@ function Harness() {
           <div style={{ height: 1, background: "var(--border-subtle)" }} />
           {/* Pre-feature move rows have no rating: no chip. */}
           <LastMoveSummary summary={{ mine: false, word: "LEGACY", points: 9, rating: null, moveId: "m3" }} />
-
-          <AnimatePresence>
-            {flash && (
-              <motion.div
-                key={flash}
-                className={`rating-flash rating-flash-${flash}`}
-                initial={{ opacity: 0, scale: 0.4 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 1.08 }}
-                transition={{ type: "spring", stiffness: 420, damping: 22 }}
-              >
-                <span className="rating-flash-text">{RATING_FLASH_LABELS[flash]}</span>
-              </motion.div>
-            )}
-          </AnimatePresence>
         </div>
 
-        {/* Harness-only controls: cycle the mover's rating + replay the flash. */}
+        {/* Harness-only controls: cycle the mover's rating. */}
         <div style={{ display: "flex", gap: 8, padding: 12, justifyContent: "center" }}>
           {RATINGS.map((r) => (
-            <button key={r} className="btn" data-rating={r} onClick={() => showRating(r)}>
+            <button key={r} className="btn" data-rating={r} onClick={() => setRating(r)}>
               {r}
             </button>
           ))}

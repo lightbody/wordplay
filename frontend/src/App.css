@@ -1132,8 +1132,6 @@ button.friend-pick:active {
   gap: 0.25rem;
   /* Allow vertical scroll (the overflow-y:auto safety net) but never zoom. */
   touch-action: pan-y;
-  /* Anchor for the rating flash overlay. */
-  position: relative;
 }
 .bottom-bar {
   flex-shrink: 0;
@@ -1295,34 +1293,6 @@ button.rating-chip {
 .best-plays-score {
   font-variant-numeric: tabular-nums;
   color: var(--text-secondary);
-}
-/* Big verdict flashed over the board once the play cascade settles. */
-.rating-flash {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  pointer-events: none;
-  z-index: 40;
-}
-.rating-flash-text {
-  font: var(--text-display-lg);
-  text-shadow:
-    0 0 3px var(--bg-app),
-    0 2px 14px rgba(43, 36, 32, 0.3);
-}
-.rating-flash-wow .rating-flash-text {
-  color: var(--accent-primary);
-}
-.rating-flash-great .rating-flash-text {
-  color: var(--success);
-}
-.rating-flash-good .rating-flash-text {
-  color: var(--warning);
-}
-.rating-flash-meh .rating-flash-text {
-  color: var(--text-tertiary);
 }
 .tiles-ring {
   --pct: 100;

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { AnimatePresence, motion } from "motion/react";
+import { motion } from "motion/react";
 import { useNavigate, useParams } from "react-router-dom";
 import { wordCellsForCommittedPlacement } from "@wordplay/shared";
 import { ApiError } from "../api";
@@ -47,19 +47,6 @@ const JUST_PLAYED_FALLBACK_MS = 5000;
  * (which, unlike the tiles, has no synced-data race to wait out: it's a
  * purely local/cosmetic fade, so a fixed timer is enough). */
 const FILL_FADE_MS = 400;
-
-/** How long the post-move rating flash ("WOW!"/"Great"/...) stays up once it
- * appears. It appears only after the play cascade + word-highlight fade have
- * finished (see submitPlay), so the verdict lands as its own beat instead of
- * competing with the tile animation. */
-const RATING_FLASH_MS = 1500;
-
-const RATING_FLASH_LABELS: Record<PlayRating, string> = {
-  wow: "WOW!",
-  great: "Great!",
-  good: "Good",
-  meh: "Meh",
-};
 
 /** How long one opponent tile takes to fly in from the score bar to its
  * board cell (see startIncomingMove). Kept as a single fixed-duration tween
@@ -234,10 +221,6 @@ export function GameScreen() {
   const [playResult, setPlayResult] = useState<{ moveId: string; rating: PlayRating; topMoves: TopMoveDto[] } | null>(
     null,
   );
-  // The big rating verdict currently flashing over the board, if any.
-  const [ratingFlash, setRatingFlash] = useState<PlayRating | null>(null);
-  const ratingFlashShowTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const ratingFlashHideTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [blankFor, setBlankFor] = useState<{ row: number; col: number; rackIndex: number } | null>(null);
   const [swapOpen, setSwapOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
@@ -269,8 +252,6 @@ export function GameScreen() {
     return () => {
       if (justPlayedTimeoutRef.current) clearTimeout(justPlayedTimeoutRef.current);
       if (justPlayedFillTimeoutRef.current) clearTimeout(justPlayedFillTimeoutRef.current);
-      if (ratingFlashShowTimeoutRef.current) clearTimeout(ratingFlashShowTimeoutRef.current);
-      if (ratingFlashHideTimeoutRef.current) clearTimeout(ratingFlashHideTimeoutRef.current);
     };
   }, []);
 
@@ -763,18 +744,10 @@ export function GameScreen() {
         fillCells.length * PLAY_CASCADE_STAGGER_MS + FILL_FADE_MS,
       );
 
-      // Rating feedback: hold the flash until the play cascade above has
-      // finished (same expression as the fill cleanup), then show the
-      // verdict for RATING_FLASH_MS. The chip + best-plays panel (via
-      // playResult) stick around until the next move.
+      // Rating feedback: the chip + best-plays panel (via playResult) stick
+      // around until the next move.
       if (res.move.rating) {
-        const rating = res.move.rating;
-        setPlayResult({ moveId: res.move.id, rating, topMoves: res.top_moves ?? [] });
-        const flashDelay = fillCells.length * PLAY_CASCADE_STAGGER_MS + FILL_FADE_MS;
-        if (ratingFlashShowTimeoutRef.current) clearTimeout(ratingFlashShowTimeoutRef.current);
-        if (ratingFlashHideTimeoutRef.current) clearTimeout(ratingFlashHideTimeoutRef.current);
-        ratingFlashShowTimeoutRef.current = setTimeout(() => setRatingFlash(rating), flashDelay);
-        ratingFlashHideTimeoutRef.current = setTimeout(() => setRatingFlash(null), flashDelay + RATING_FLASH_MS);
+        setPlayResult({ moveId: res.move.id, rating: res.move.rating, topMoves: res.top_moves ?? [] });
       }
 
       setPending([]);
@@ -832,21 +805,6 @@ export function GameScreen() {
           summary={lastMove}
           topMoves={playResult && lastMove && playResult.moveId === lastMove.moveId ? playResult.topMoves : undefined}
         />
-
-        <AnimatePresence>
-          {ratingFlash && (
-            <motion.div
-              key={ratingFlash}
-              className={`rating-flash rating-flash-${ratingFlash}`}
-              initial={{ opacity: 0, scale: 0.4 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 1.08 }}
-              transition={{ type: "spring", stiffness: 420, damping: 22 }}
-            >
-              <span className="rating-flash-text">{RATING_FLASH_LABELS[ratingFlash]}</span>
-            </motion.div>
-          )}
-        </AnimatePresence>
 
         <BoardViewport>
           <Board

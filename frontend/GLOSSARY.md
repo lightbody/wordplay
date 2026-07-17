@@ -48,9 +48,6 @@ Top to bottom, the game screen (`.game-screen`) is laid out as:
      the top three plays that were available (word + score). Mover-only and session-local: the
      alternatives come back in the play response and are never synced, since they'd reveal rack
      letters the mover may still be holding.
-   - **Rating flash** (`.rating-flash`, `.rating-flash-{rating}`) — the big "WOW!"/"Great!"/
-     "Good"/"Meh" verdict that springs in centered over the board once the mover's play cascade
-     finishes, then fades after ~1.5s.
    - **Board viewport** (see below)
    - **Share panel**, only during the *sharing* phase (see Phases)
 3. **Bottom bar** (`.bottom-bar`) — fixed footer holding the **rack area** and the
@@ -224,5 +221,5 @@ of the real components above with hand-built mock data:
 - `drag-harness.html` — Rack/Board drag-and-drop.
 - `zoom-harness.html` — BoardViewport pinch/pan/zoom.
 - `header-harness.html` — game-screen topbar + Scorebar + last-move summary with the rating
-  chip, best-plays panel, and rating flash.
+  chip and best-plays panel.
 - `account-menu-harness.html` — AccountMenu dropdown.
