@@ -37,7 +37,20 @@ Top to bottom, the game screen (`.game-screen`) is laid out as:
 2. **Middle area** (`.game-middle`) — scrollable/flex region holding, in order:
    - **Scorebar** (see below)
    - **Last-move summary** (`LastMoveSummary.tsx`, `.last-move-summary`) — the one-line "You
-     played CARDS for 24 points." caption under the scorebar.
+     played CARDS for 24 points." caption under the scorebar, followed by the **rating chip**
+     when the move has one.
+   - **Rating chip** (`.rating-chip`, `.rating-chip-{wow|great|good|meh}`) — small colored pill
+     after the last-move summary showing how the play compared to the best move that was
+     available (wow = matched the best possible score, great = ≥90% of it, good = ≥50%,
+     meh = below). Both players see it (the rating syncs on the move row). For the mover's own
+     just-submitted move it's a button that toggles the **best-plays panel**; otherwise inert.
+   - **Best-plays panel** (`.best-plays-panel`) — popover under the rating chip listing up to
+     the top three plays that were available (word + score). Mover-only and session-local: the
+     alternatives come back in the play response and are never synced, since they'd reveal rack
+     letters the mover may still be holding.
+   - **Rating flash** (`.rating-flash`, `.rating-flash-{rating}`) — the big "WOW!"/"Great!"/
+     "Good"/"Meh" verdict that springs in centered over the board once the mover's play cascade
+     finishes, then fades after ~1.5s.
    - **Board viewport** (see below)
    - **Share panel**, only during the *sharing* phase (see Phases)
 3. **Bottom bar** (`.bottom-bar`) — fixed footer holding the **rack area** and the
@@ -210,5 +223,6 @@ of the real components above with hand-built mock data:
 
 - `drag-harness.html` — Rack/Board drag-and-drop.
 - `zoom-harness.html` — BoardViewport pinch/pan/zoom.
-- `header-harness.html` — game-screen topbar + Scorebar.
+- `header-harness.html` — game-screen topbar + Scorebar + last-move summary with the rating
+  chip, best-plays panel, and rating flash.
 - `account-menu-harness.html` — AccountMenu dropdown.

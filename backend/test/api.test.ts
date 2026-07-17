@@ -10,7 +10,7 @@ import type { AddressInfo } from "node:net";
 import type { FastifyInstance } from "fastify";
 import { exportJWK, importJWK, SignJWT, type KeyLike } from "jose";
 import { Pool } from "pg";
-import { createDictionary } from "@wordplay/shared";
+import { buildTrie, createDictionary } from "@wordplay/shared";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { AppContext } from "../src/context.js";
 import { runMigrations } from "../src/migrate.js";
@@ -82,6 +82,7 @@ beforeAll(async () => {
     electricUrl: electric.url,
     publicAppUrl: "https://wordplay.example",
     dictionary: createDictionary(["hello", "hellos", "world"]),
+    wordTrie: buildTrie(["hello", "hellos", "world"]),
     dictionaryText: "hello\nhellos\nworld\n",
     dictionaryHash: "test-hash",
     dictionarySize: 0,
@@ -224,6 +225,14 @@ describe("wordplay backend API", () => {
     expect(play.body.game.creator_score).toBe(16);
     // Turn handed off to nobody yet (awaiting opponent).
     expect(play.body.game.current_player_id).toBeNull();
+    // Best available was HELLO with H on the row-7 DL: (8+4)*2 = 24, so this
+    // 16-pointer rates "good"; the alternatives ride only on the response.
+    expect(play.body.move.rating).toBe("good");
+    expect(play.body.move.best_score).toBe(24);
+    expect(Array.isArray(play.body.top_moves)).toBe(true);
+    expect(play.body.top_moves.length).toBeGreaterThanOrEqual(1);
+    expect(play.body.top_moves[0].score).toBe(24);
+    expect(play.body.top_moves[0].words[0].word).toBe("HELLO");
 
     // An invalid word is rejected with the offending words listed.
     await setRack(gameId, "creator", "ZQXJKVW");
@@ -266,6 +275,19 @@ describe("wordplay backend API", () => {
     expect(opp.status, JSON.stringify(opp.body)).toBe(201);
     expect(opp.body.move.score).toBeGreaterThan(0);
     expect(opp.body.game.current_player_id).toBe("creator");
+    // The S hook was the only legal move, so it rates "wow".
+    expect(opp.body.move.rating).toBe("wow");
+    expect(opp.body.move.best_score).toBe(opp.body.move.score);
+    expect(opp.body.top_moves.length).toBe(1);
+
+    // Passes are never rated and carry no alternatives.
+    const pass = await post(`/games/${gameId}/moves`, "creator", { type: "pass" });
+    expect(pass.status).toBe(201);
+    expect(pass.body.move.rating).toBeNull();
+    expect(pass.body.move.best_score).toBeNull();
+    expect(pass.body.top_moves).toBeUndefined();
+    const passBack = await post(`/games/${gameId}/moves`, "joiner", { type: "pass" });
+    expect(passBack.status, JSON.stringify(passBack.body)).toBe(201);
 
     // Creator resigns -> game finished, opponent wins.
     const resign = await post(`/games/${gameId}/moves`, "creator", { type: "resign" });

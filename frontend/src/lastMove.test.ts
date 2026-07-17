@@ -13,6 +13,8 @@ function move(overrides: Partial<Move>): Move {
     words: [],
     swap_count: null,
     score: 0,
+    rating: null,
+    best_score: null,
     created_at: "",
     ...overrides,
   };
@@ -52,9 +54,21 @@ describe("summarizeLastMove", () => {
   it("summarizes the highest move_number play as mine", () => {
     const moves = [
       move({ move_number: 1, user_id: "me", score: 10, words: [{ word: "HI", score: 10 }] }),
-      move({ move_number: 2, user_id: "them", score: 24, words: [{ word: "QUIZ", score: 24 }] }),
+      move({ id: "m2", move_number: 2, user_id: "them", score: 24, words: [{ word: "QUIZ", score: 24 }], rating: "great" }),
     ];
-    expect(summarizeLastMove(moves, "me")).toEqual({ mine: false, word: "QUIZ", points: 24 });
+    expect(summarizeLastMove(moves, "me")).toEqual({
+      mine: false,
+      word: "QUIZ",
+      points: 24,
+      rating: "great",
+      moveId: "m2",
+    });
+  });
+
+  it("treats a missing rating (pre-feature row) as null", () => {
+    const legacy = move({ move_number: 1, score: 5, words: [{ word: "HI", score: 5 }] });
+    delete (legacy as Record<string, unknown>).rating;
+    expect(summarizeLastMove([legacy], "me")?.rating).toBeNull();
   });
 
   it("picks the best word among multiple formed in one play", () => {
@@ -69,7 +83,7 @@ describe("summarizeLastMove", () => {
         ],
       }),
     ];
-    expect(summarizeLastMove(moves, "me")).toEqual({ mine: true, word: "CATS", points: 15 });
+    expect(summarizeLastMove(moves, "me")).toEqual({ mine: true, word: "CATS", points: 15, rating: null, moveId: "m1" });
   });
 
   it("returns undefined when the last move was a swap/pass/resign", () => {

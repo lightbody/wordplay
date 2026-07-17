@@ -1,4 +1,4 @@
-import type { Game, Move, PlacedTileDto, Profile } from "./types";
+import type { Game, Move, PlacedTileDto, Profile, TopMoveDto } from "./types";
 
 // Electric's ShapeStream requires an absolute URL — use origin+/api in dev,
 // or the explicit VITE_API_URL in production.
@@ -79,7 +79,7 @@ export function createApi(token: string) {
     getGame: (id: string) => request<GameDetail>(`/games/${id}`, token),
 
     play: (id: string, tiles: PlacedTileDto[]) =>
-      request<{ game: Game; move: Move; rack: string; game_over: boolean }>(`/games/${id}/moves`, token, {
+      request<{ game: Game; move: Move; rack: string; game_over: boolean; top_moves?: TopMoveDto[] }>(`/games/${id}/moves`, token, {
         method: "POST",
         body: JSON.stringify({ type: "play", tiles }),
       }),

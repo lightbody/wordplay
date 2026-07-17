@@ -1,5 +1,9 @@
 // Electric's useShape<T> requires T extends Row (an index signature).
 
+import type { PlayRating } from "@wordplay/shared";
+
+export type { PlayRating };
+
 export interface Game {
   id: string;
   status: "awaiting_opponent" | "active" | "finished";
@@ -75,8 +79,20 @@ export interface Move {
   words: PlayedWord[] | null;
   swap_count: number | null;
   score: number;
+  /** Play quality vs. the best possible move; null for non-plays and pre-feature rows. */
+  rating: PlayRating | null;
+  /** Score of the best move that was available; null whenever rating is null. */
+  best_score: number | null;
   created_at: string;
   [key: string]: unknown;
+}
+
+/** One of the best moves that was available, returned only to the mover in the play response. */
+export interface TopMoveDto {
+  tiles: PlacedTileDto[];
+  words: PlayedWord[];
+  score: number;
+  bingo: boolean;
 }
 
 export interface Profile {

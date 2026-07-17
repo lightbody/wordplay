@@ -60,7 +60,8 @@ Existing harnesses, all persistent (committed to the repo):
 - **`frontend/zoom-harness.html` + `frontend/src/zoom-harness.tsx`** — `BoardViewport`'s
   pinch/pan/zoom behavior (double-tap-to-zoom, the zoom-crop drop-shadow overlay).
 - **`frontend/header-harness.html` + `frontend/src/header-harness.tsx`** — the in-game topbar
-  (back chevron) and `ScoreBar`.
+  (back chevron), `ScoreBar`, and `LastMoveSummary` with the post-move rating feedback (rating
+  chip, best-plays panel, rating flash).
 - **`frontend/account-menu-harness.html` + `frontend/src/account-menu-harness.tsx`** — the
   `AccountMenu` avatar dropdown (theme picker, sign out) from the landing page header.
 

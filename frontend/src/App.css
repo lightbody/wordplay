@@ -1132,6 +1132,8 @@ button.friend-pick:active {
   gap: 0.25rem;
   /* Allow vertical scroll (the overflow-y:auto safety net) but never zoom. */
   touch-action: pan-y;
+  /* Anchor for the rating flash overlay. */
+  position: relative;
 }
 .bottom-bar {
   flex-shrink: 0;
@@ -1215,9 +1217,112 @@ button.friend-pick:active {
   font: var(--text-caption);
   color: var(--text-tertiary);
   margin: -0.15rem 0 0;
+  /* Anchor for the best-plays panel popover. */
+  position: relative;
 }
 .last-move-summary strong {
   color: var(--text-primary);
+}
+
+/* --- post-move rating feedback --- */
+.rating-chip {
+  display: inline-block;
+  vertical-align: baseline;
+  margin-left: 0.4rem;
+  padding: 0.05rem 0.5rem;
+  border: 1px solid transparent;
+  border-radius: var(--radius-pill);
+  font: var(--text-caption);
+  font-weight: 700;
+}
+button.rating-chip {
+  cursor: pointer;
+}
+.rating-chip-wow {
+  background: var(--accent-primary-tint);
+  color: var(--accent-primary-hover);
+  border-color: var(--accent-primary);
+}
+.rating-chip-great {
+  background: var(--success-tint);
+  color: var(--sage-700);
+  border-color: var(--success);
+}
+.rating-chip-good {
+  background: var(--warning-tint);
+  color: var(--text-secondary);
+  border-color: var(--warning);
+}
+.rating-chip-meh {
+  background: var(--bg-surface-sunken);
+  color: var(--text-tertiary);
+  border-color: var(--border-default);
+}
+/* Popover under the summary line (spans, not divs: it lives inside a <p>). */
+.best-plays-panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  min-width: 190px;
+  padding: 0.55rem 0.7rem;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  text-align: left;
+}
+.best-plays-title {
+  font: var(--text-caption);
+  font-weight: 700;
+  color: var(--text-tertiary);
+}
+.best-plays-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  font: var(--text-caption);
+  color: var(--text-primary);
+}
+.best-plays-word {
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+.best-plays-score {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-secondary);
+}
+/* Big verdict flashed over the board once the play cascade settles. */
+.rating-flash {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 40;
+}
+.rating-flash-text {
+  font: var(--text-display-lg);
+  text-shadow:
+    0 0 3px var(--bg-app),
+    0 2px 14px rgba(43, 36, 32, 0.3);
+}
+.rating-flash-wow .rating-flash-text {
+  color: var(--accent-primary);
+}
+.rating-flash-great .rating-flash-text {
+  color: var(--success);
+}
+.rating-flash-good .rating-flash-text {
+  color: var(--warning);
+}
+.rating-flash-meh .rating-flash-text {
+  color: var(--text-tertiary);
 }
 .tiles-ring {
   --pct: 100;
