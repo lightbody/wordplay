@@ -62,7 +62,7 @@ async function main(): Promise<void> {
   await runMigrations(pool, path.join(backendRoot, "migrations"));
   console.log("migrations applied");
 
-  const dictionaryPath = path.join(repoRoot, "shared", "assets", "enable.txt");
+  const dictionaryPath = path.join(repoRoot, "shared", "assets", "nwl2023.txt");
   const dictionaryText = await readFile(dictionaryPath, "utf8");
   const dictionaryHash = createHash("sha256").update(dictionaryText).digest("hex");
   const dictionary = loadDictionaryFromText(dictionaryText);

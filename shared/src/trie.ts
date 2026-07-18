@@ -1,6 +1,6 @@
 // Compact static trie over a word list, used by the move solver for prefix
 // walks the Set-backed Dictionary can't do. First-child/next-sibling layout
-// over parallel typed arrays: ~4MB resident for the full ENABLE list vs
+// over parallel typed arrays: ~4MB resident for the full NWL2023 list vs
 // ~90MB for Map-based nodes, which matters on the 256MB backend VM.
 
 const CODE_A = 65; // "A"
