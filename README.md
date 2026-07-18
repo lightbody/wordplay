@@ -48,7 +48,7 @@ docker-compose.yml   Local Postgres (wal_level=logical) + Electric
 
 The game rules live in `shared/src/` as pure, dependency-free TypeScript
 (board layout, tile bag, move validation, word extraction, scoring, the
-ENABLE dictionary, and end-game logic), consumed by both the backend (for
+NWL2023 dictionary, and end-game logic), consumed by both the backend (for
 authoritative validation) and the frontend (for instant client-side
 feedback as tiles are placed, including a live dictionary check) — one
 implementation, not two mirrors kept in sync by hand.
@@ -131,9 +131,14 @@ the opening move must cover the center star, standard 100-tile English
 distribution and letter values, 7-tile racks replenished from the bag, and
 two blanks. Turn actions are **play**, **swap** 1–7 tiles (requires ≥7 in
 the bag; costs your turn), **pass**, and **resign**. Words are checked
-against the ENABLE word list client-side as tiles are placed (instant
+against the NWL2023 word list client-side as tiles are placed (instant
 feedback, Play disabled for an invalid word) and again authoritatively by
 the server on submission.
+
+**Word list**: `shared/assets/nwl2023.txt` is the [NASPA Word List
+2023](https://scrabbleplayers.org/w/NWL2023) (196,601 words), © NASPA,
+used with credit per NASPA's policy for free community software. See
+`shared/assets/README.md` for provenance.
 
 **Game options** (remembered as your default for next time):
 - *Deduct unused tile values from final score* — at game end, each player

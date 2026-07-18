@@ -8,8 +8,8 @@ import { N } from "./board.js";
 import { loadDictionaryFromText } from "./dictionary.js";
 import { validatePlay, type PlacedTile, type PlayOutcome } from "./moves.js";
 
-const enableTxtPath = fileURLToPath(new URL("../assets/enable.txt", import.meta.url));
-const dictionary = loadDictionaryFromText(readFileSync(enableTxtPath, "utf8"));
+const nwl2023TxtPath = fileURLToPath(new URL("../assets/nwl2023.txt", import.meta.url));
+const dictionary = loadDictionaryFromText(readFileSync(nwl2023TxtPath, "utf8"));
 
 /** Build a board from 15 rows of 15 chars ('.' = empty). */
 function board(rows: string[]): string {

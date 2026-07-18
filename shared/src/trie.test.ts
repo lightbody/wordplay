@@ -3,8 +3,8 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { buildTrie, buildTrieFromText } from "./trie.js";
 
-const enableTxtPath = fileURLToPath(new URL("../assets/enable.txt", import.meta.url));
-const enableText = readFileSync(enableTxtPath, "utf8");
+const nwl2023TxtPath = fileURLToPath(new URL("../assets/nwl2023.txt", import.meta.url));
+const nwl2023Text = readFileSync(nwl2023TxtPath, "utf8");
 
 describe("buildTrie", () => {
   const words = ["cat", "cats", "cab", "at", "dog", "do"];
@@ -52,24 +52,24 @@ describe("buildTrie", () => {
   });
 });
 
-describe("buildTrieFromText on the full ENABLE list", () => {
+describe("buildTrieFromText on the full NWL2023 list", () => {
   it("has membership parity with the word list", () => {
-    const words = enableText
+    const words = nwl2023Text
       .split("\n")
       .map((line) => line.replace(/\r$/, ""))
       .filter((line) => line.length > 0);
     const start = Date.now();
-    const trie = buildTrieFromText(enableText);
+    const trie = buildTrieFromText(nwl2023Text);
     const buildMs = Date.now() - start;
     // eslint-disable-next-line no-console
-    console.log(`ENABLE trie: ${trie.nodeCount} nodes in ${buildMs}ms`);
+    console.log(`NWL2023 trie: ${trie.nodeCount} nodes in ${buildMs}ms`);
     expect(buildMs).toBeLessThan(2000);
 
     for (const w of words) {
       if (!trie.hasWord(w)) throw new Error(`trie missing word: ${w}`);
     }
     // Negative probes: every word with one letter appended stays a word only
-    // if the list says so — spot-check a slice rather than all 172k * 26.
+    // if the list says so — spot-check a slice rather than all 196k * 26.
     const set = new Set(words);
     for (let i = 0; i < words.length; i += 997) {
       const probe = words[i] + "q";

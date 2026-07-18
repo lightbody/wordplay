@@ -11,10 +11,10 @@ import type { SolvedMove } from "./solver.js";
 import { seededRng } from "./tiles.js";
 import { buildTrie, buildTrieFromText } from "./trie.js";
 
-const enableTxtPath = fileURLToPath(new URL("../assets/enable.txt", import.meta.url));
-const enableText = readFileSync(enableTxtPath, "utf8");
-const enableDictionary = loadDictionaryFromText(enableText);
-const enableTrie = buildTrieFromText(enableText);
+const nwl2023TxtPath = fileURLToPath(new URL("../assets/nwl2023.txt", import.meta.url));
+const nwl2023Text = readFileSync(nwl2023TxtPath, "utf8");
+const nwl2023Dictionary = loadDictionaryFromText(nwl2023Text);
+const nwl2023Trie = buildTrieFromText(nwl2023Text);
 
 // A small closed word list over the alphabet ABCENOST, shared by the solver
 // trie and the brute-force oracle so the two judge identically.
@@ -158,7 +158,7 @@ function midgameBoard(): string {
     ["UN", tilesOf([[8, 8, "U"], [9, 8, "N"]])],
   ];
   for (const [rack, tiles] of plays) {
-    const out = validatePlay(b, rack, tiles, enableDictionary);
+    const out = validatePlay(b, rack, tiles, nwl2023Dictionary);
     if ("code" in out) throw new Error(`bad midgame fixture play: ${out.code}`);
     b = out.newBoard;
   }
@@ -300,7 +300,7 @@ describe("findTopMoves rules and edge cases", () => {
   });
 
   it("caps top at the requested limit", () => {
-    const result = findTopMoves(midgameBoard(), "SATIRE", enableTrie);
+    const result = findTopMoves(midgameBoard(), "SATIRE", nwl2023Trie);
     expect(result.top.length).toBe(3);
     expect(result.top[0].score).toBe(result.bestScore);
     expect(result.top[0].score).toBeGreaterThanOrEqual(result.top[1].score);
@@ -308,20 +308,20 @@ describe("findTopMoves rules and edge cases", () => {
   });
 });
 
-describe("findTopMoves on the full ENABLE dictionary", () => {
+describe("findTopMoves on the full NWL2023 dictionary", () => {
   it("emits only legal plays on a mid-game board (invariant check)", () => {
     const b = midgameBoard();
     const rack = "SATIRE?";
-    const all = findTopMoves(b, rack, enableTrie, 1_000_000);
+    const all = findTopMoves(b, rack, nwl2023Trie, 1_000_000);
     expect(all.top.length).toBeGreaterThan(100);
-    for (const move of all.top) expectLegal(b, rack, move, enableDictionary);
+    for (const move of all.top) expectLegal(b, rack, move, nwl2023Dictionary);
   });
 
   it("solves representative racks quickly", () => {
     const b = midgameBoard();
     for (const rack of ["SATIRE?", "AB??CDE"]) {
       const start = Date.now();
-      const result = findTopMoves(b, rack, enableTrie);
+      const result = findTopMoves(b, rack, nwl2023Trie);
       const ms = Date.now() - start;
       // eslint-disable-next-line no-console
       console.log(`findTopMoves(${rack}): best ${result.bestScore} in ${ms}ms`);
