@@ -12,7 +12,7 @@ import { AccountMenu } from "../components/AccountMenu";
 import { Dialog } from "../components/Dialog";
 import { Toast } from "../components/Toast";
 
-interface View {
+export interface View {
   game: Game;
   meCreator: boolean;
   myScore: number;
@@ -24,6 +24,26 @@ interface View {
   outcome: "win" | "loss" | "draw" | null;
   rematchable: boolean;
   nudgeable: boolean;
+}
+
+/** Pure per-card view model, shared with the game-list harness (mock data, no shapes/auth). */
+export function gameToView(game: Game, profileId: string, friendIds: Set<string>, now: number): View {
+  const meCreator = game.creator_id === profileId;
+  const outcome: View["outcome"] =
+    game.status !== "finished" ? null : !game.winner_id ? "draw" : game.winner_id === profileId ? "win" : "loss";
+  return {
+    game,
+    meCreator,
+    myScore: meCreator ? game.creator_score : game.opponent_score,
+    theirScore: meCreator ? game.opponent_score : game.creator_score,
+    opponentName: (meCreator ? game.opponent_username : game.creator_username) ?? "waiting…",
+    opponentAvatarEmoji: meCreator ? game.opponent_avatar_emoji : game.creator_avatar_emoji,
+    opponentAvatarColor: meCreator ? game.opponent_avatar_color : game.creator_avatar_color,
+    myTurn: game.current_player_id === profileId,
+    outcome,
+    rematchable: canRematch(game, profileId, friendIds),
+    nudgeable: canNudge(game, profileId, now),
+  };
 }
 
 export function GameList() {
@@ -52,31 +72,7 @@ export function GameList() {
   const views = useMemo<View[]>(() => {
     return (games ?? [])
       .filter(visibleGame)
-      .map((game) => {
-        const meCreator = game.creator_id === profile.id;
-        const outcome: View["outcome"] =
-          game.status !== "finished"
-            ? null
-            : !game.winner_id
-              ? "draw"
-              : game.winner_id === profile.id
-                ? "win"
-                : "loss";
-        return {
-          game,
-          meCreator,
-          myScore: meCreator ? game.creator_score : game.opponent_score,
-          theirScore: meCreator ? game.opponent_score : game.creator_score,
-          opponentName:
-            (meCreator ? game.opponent_username : game.creator_username) ?? "waiting…",
-          opponentAvatarEmoji: meCreator ? game.opponent_avatar_emoji : game.creator_avatar_emoji,
-          opponentAvatarColor: meCreator ? game.opponent_avatar_color : game.creator_avatar_color,
-          myTurn: game.current_player_id === profile.id,
-          outcome,
-          rematchable: canRematch(game, profile.id, friendIds),
-          nudgeable: canNudge(game, profile.id, now),
-        };
-      })
+      .map((game) => gameToView(game, profile.id, friendIds, now))
       .sort((a, b) => (a.game.updated_at < b.game.updated_at ? 1 : -1));
   }, [games, profile.id, friendIds, now]);
 
@@ -200,7 +196,7 @@ export function GameList() {
   );
 }
 
-function Section({
+export function Section({
   title,
   views,
   accent,
