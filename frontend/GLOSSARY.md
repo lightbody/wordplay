@@ -119,17 +119,18 @@ Top to bottom, the game screen (`.game-screen`) is laid out as:
   indicator (drawn down from `BAG_SIZE`) showing how many tiles remain in the bag. Tapping it
   opens the **unseen tiles** dialog (see Dialogs).
 - **Last-move summary** — see Game screen above.
-- **Badge** (`.badge` on game cards) — small status pill: "Your move", "Waiting", "Draw",
-  "You won"/"You lost".
+- **Badge** (`.badge` on game cards) — small status pill: "Your move", "Waiting" (replaced by
+  the **nudge button** once a nudge is allowed), "Draw", "You won"/"You lost".
 - **Rematch button** (`.rematch-btn`) — the small "Rematch" action on a finished game card
   (shown when the opponent is still a friend); one tap starts a new game against them and
   drops the player into the opening move.
-- **Nudge button** (`.nudge-btn`) — the small "Nudge" action on a "Their turn" game card;
-  one tap sends the opponent a push notification ("X nudged you"). Hidden until a nudge is
-  actually allowed (server-enforced: the opponent must have been on the clock ≥ 1 hour, and
-  at most one nudge per player per game every 4 hours — eligibility helpers in
-  `gameList.ts`). If the opponent doesn't appear to be receiving pushes, a successful nudge
-  opens the **nudge fallback dialog** (see Dialogs).
+- **Nudge button** (`.nudge-btn`) — replaces the "Waiting" badge on a "Their turn" game card
+  once a nudge is actually allowed ("Nudge" already implies waiting, so the two never show
+  together); one tap sends the opponent a push notification ("X nudged you"). Eligibility is
+  server-enforced: the opponent must have been on the clock ≥ 1 hour, and at most one nudge per
+  player per game every 4 hours — eligibility helpers in `gameList.ts`. Before that, the card
+  still shows the plain "Waiting" badge. If the opponent doesn't appear to be receiving pushes,
+  a successful nudge opens the **nudge fallback dialog** (see Dialogs).
 
 ## Action bar (bottom of the game screen)
 
@@ -203,8 +204,8 @@ over a dimmed/blurred backdrop, with an optional title and an **actions row** of
 - **Game list** (`GameList.tsx`) — the home screen after sign-in. Games are grouped into
   **sections** (`.game-section`: "Your turn", "Their turn", "Finished"), each a list of
   **game cards** (`.game-card`) showing the opponent's avatar, `vs @username`, the score line,
-  and a status badge (finished cards may also carry a **rematch button**; "Their turn" cards a
-  **nudge button**). Opponent-less
+  and a status badge (finished cards may also carry a **rematch button**; "Their turn" cards
+  swap their badge for a **nudge button** once eligible). Opponent-less
   (`awaiting_opponent`) games are never listed — they only exist on their own game screen
   until an opponent is attached (helpers in `gameList.ts`).
 - **New game** (`NewGame.tsx`) — the pre-game screen: the "deduct unused tile values" switch,

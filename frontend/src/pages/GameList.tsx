@@ -261,23 +261,20 @@ export function Section({
                 </>
               ) : v.myTurn ? (
                 <span className="badge badge-accent">Your move</span>
+              ) : v.nudgeable && onNudge ? (
+                <button
+                  className="btn btn-ghost nudge-btn"
+                  disabled={nudging !== null}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    onNudge(v);
+                  }}
+                >
+                  {nudging === v.game.id ? "Nudging…" : "Nudge"}
+                </button>
               ) : (
-                <>
-                  <span className="badge badge-muted">Waiting</span>
-                  {v.nudgeable && onNudge && (
-                    <button
-                      className="btn btn-ghost nudge-btn"
-                      disabled={nudging !== null}
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        onNudge(v);
-                      }}
-                    >
-                      {nudging === v.game.id ? "Nudging…" : "Nudge"}
-                    </button>
-                  )}
-                </>
+                <span className="badge badge-muted">Waiting</span>
               )}
             </div>
           </Link>
