@@ -373,6 +373,119 @@ describe("wordplay backend API", () => {
     expect(gone.rows).toHaveLength(0);
   });
 
+  it("nudging: authorization, cooldowns, and opponent push health", async () => {
+    await onboard("creator", "Creator");
+    await onboard("joiner", "Joiner");
+    await onboard("outsider", "Outsider");
+
+    // Reach an active game: creator opens with HELLO, joiner accepts an invite.
+    const created = await post("/games", "creator", { deduct_unused: false });
+    const gameId: string = created.body.game.id;
+    await setRack(gameId, "creator", "HELLOAB");
+    const play = await post(`/games/${gameId}/moves`, "creator", {
+      type: "play",
+      tiles: [
+        { row: 7, col: 5, letter: "H", blank: false },
+        { row: 7, col: 6, letter: "E", blank: false },
+        { row: 7, col: 7, letter: "L", blank: false },
+        { row: 7, col: 8, letter: "L", blank: false },
+        { row: 7, col: 9, letter: "O", blank: false },
+      ],
+    });
+    expect(play.status, JSON.stringify(play.body)).toBe(201);
+    const invite = await post(`/games/${gameId}/invites`, "creator", {});
+    const accept = await post(`/invites/${invite.body.token}/accept`, "joiner", {});
+    expect(accept.status, JSON.stringify(accept.body)).toBe(200);
+
+    // Guards: unknown game, non-participant, and the player on the clock.
+    expect((await post("/games/00000000-0000-0000-0000-000000000000/nudge", "creator", {})).status).toBe(404);
+    expect((await post(`/games/${gameId}/nudge`, "outsider", {})).status).toBe(403);
+    const yourTurn = await post(`/games/${gameId}/nudge`, "joiner", {});
+    expect(yourTurn.status).toBe(409);
+    expect(yourTurn.body.error).toBe("your_turn");
+
+    // The opponent just went on the clock (invite accept bumped updated_at).
+    const fresh = await post(`/games/${gameId}/nudge`, "creator", {});
+    expect(fresh.status).toBe(429);
+    expect(fresh.body.error).toBe("turn_too_recent");
+
+    // An hour-plus on the clock: nudge goes through.
+    await pool.query("UPDATE games SET updated_at = now() - interval '2 hours' WHERE id = $1", [gameId]);
+    const ok = await post(`/games/${gameId}/nudge`, "creator", {});
+    expect(ok.status, JSON.stringify(ok.body)).toBe(200);
+    expect(ok.body.game.creator_last_nudge_at).not.toBeNull();
+    // No subscriptions at all -> the client should offer the share backup.
+    expect(ok.body.opponent_push.subscriptions).toBe(0);
+    expect(ok.body.opponent_push.likely_receiving).toBe(false);
+    // Regression guard: a nudge is not game activity — it must not reset the
+    // one-hour idle clock (or reshuffle the list) by bumping updated_at.
+    const untouched = await pool.query(
+      "SELECT now() - updated_at >= interval '1 hour' AS still_old FROM games WHERE id = $1",
+      [gameId],
+    );
+    expect(untouched.rows[0].still_old).toBe(true);
+
+    // Per-player-per-game cooldown: 4 hours between nudges.
+    const repeat = await post(`/games/${gameId}/nudge`, "creator", {});
+    expect(repeat.status).toBe(429);
+    expect(repeat.body.error).toBe("nudge_cooldown");
+
+    // Cooldown lapsed + a live subscription with a fresh enable signal.
+    await pool.query("UPDATE games SET creator_last_nudge_at = now() - interval '5 hours' WHERE id = $1", [gameId]);
+    await pool.query(
+      "INSERT INTO push_subscriptions (user_id, endpoint, p256dh, auth) VALUES ('joiner', 'https://push.example/nudge', 'k', 'a')",
+    );
+    await pool.query("UPDATE users SET push_enabled_at = now() WHERE id = 'joiner'");
+    const healthy = await post(`/games/${gameId}/nudge`, "creator", {});
+    expect(healthy.status, JSON.stringify(healthy.body)).toBe(200);
+    expect(healthy.body.opponent_push.subscriptions).toBe(1);
+    expect(healthy.body.opponent_push.likely_receiving).toBe(true);
+
+    // A subscription whose only signal is >30 days old reads as stale...
+    await pool.query("UPDATE games SET creator_last_nudge_at = now() - interval '5 hours' WHERE id = $1", [gameId]);
+    await pool.query("UPDATE users SET push_enabled_at = now() - interval '40 days' WHERE id = 'joiner'");
+    const stale = await post(`/games/${gameId}/nudge`, "creator", {});
+    expect(stale.status).toBe(200);
+    expect(stale.body.opponent_push.likely_receiving).toBe(false);
+
+    // ...but a recent notification tap counts as a signal too.
+    await pool.query("UPDATE games SET creator_last_nudge_at = now() - interval '5 hours' WHERE id = $1", [gameId]);
+    await pool.query("UPDATE users SET push_opened_at = now() WHERE id = 'joiner'");
+    const tapped = await post(`/games/${gameId}/nudge`, "creator", {});
+    expect(tapped.status).toBe(200);
+    expect(tapped.body.opponent_push.likely_receiving).toBe(true);
+
+    // Finished games can't be nudged.
+    const resign = await post(`/games/${gameId}/moves`, "joiner", { type: "resign" });
+    expect(resign.status, JSON.stringify(resign.body)).toBe(201);
+    const done = await post(`/games/${gameId}/nudge`, "creator", {});
+    expect(done.status).toBe(409);
+    expect(done.body.error).toBe("game_not_active");
+  });
+
+  it("push usage tracking: enable and notification-tap signals", async () => {
+    await onboard("tracker", "Tracker");
+
+    const before = await pool.query("SELECT push_enabled_at, push_opened_at FROM users WHERE id = 'tracker'");
+    expect(before.rows[0].push_enabled_at).toBeNull();
+    expect(before.rows[0].push_opened_at).toBeNull();
+
+    // Subscribing stamps the enable signal.
+    const sub = { endpoint: "https://push.example/tracker", keys: { p256dh: "k", auth: "a" } };
+    expect((await post("/me/push-subscriptions", "tracker", sub)).status).toBe(204);
+    const enabled = await pool.query("SELECT push_enabled_at FROM users WHERE id = 'tracker'");
+    expect(enabled.rows[0].push_enabled_at).not.toBeNull();
+
+    // The app reporting a notification-tap open stamps the other signal.
+    expect((await post("/me/push-opened", "tracker", {})).status).toBe(204);
+    const opened = await pool.query("SELECT push_opened_at FROM users WHERE id = 'tracker'");
+    expect(opened.rows[0].push_opened_at).not.toBeNull();
+
+    // Both tracking writes require auth.
+    const unauthed = await app.inject({ method: "POST", url: "/me/push-opened" });
+    expect(unauthed.statusCode).toBe(401);
+  });
+
   it("friend links: get-or-create, preview, accept, regenerate, remove", async () => {
     await onboard("alice", "Alice");
     await onboard("bob", "Bob");

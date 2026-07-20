@@ -1,13 +1,16 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@workos-inc/authkit-react";
 import { useFriendsShape, useGamesShape } from "../shapes";
 import { useProfile, useProfileContext, useApi } from "../profile";
-import { canRematch, opponentIdOf, visibleGame } from "../gameList";
+import { canNudge, canRematch, opponentIdOf, visibleGame } from "../gameList";
+import { shareOrCopy } from "../share";
 import type { Game } from "../types";
 import { Spinner } from "../components/Spinner";
 import { Avatar } from "../components/Avatar";
 import { AccountMenu } from "../components/AccountMenu";
+import { Dialog } from "../components/Dialog";
+import { Toast } from "../components/Toast";
 
 interface View {
   game: Game;
@@ -20,6 +23,7 @@ interface View {
   myTurn: boolean;
   outcome: "win" | "loss" | "draw" | null;
   rematchable: boolean;
+  nudgeable: boolean;
 }
 
 export function GameList() {
@@ -31,8 +35,19 @@ export function GameList() {
   const { data: games, isLoading } = useGamesShape();
   const { data: friends } = useFriendsShape();
   const [rematching, setRematching] = useState<string | null>(null);
+  const [nudging, setNudging] = useState<string | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
+  const [nudgeFallback, setNudgeFallback] = useState<View | null>(null);
 
   const friendIds = useMemo(() => new Set((friends ?? []).map((f) => f.friend_id)), [friends]);
+
+  // Nudge buttons are hidden until allowed, and the cooldowns lapse without
+  // any sync event to re-render on — tick once a minute so they appear.
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 60_000);
+    return () => clearInterval(timer);
+  }, []);
 
   const views = useMemo<View[]>(() => {
     return (games ?? [])
@@ -59,10 +74,11 @@ export function GameList() {
           myTurn: game.current_player_id === profile.id,
           outcome,
           rematchable: canRematch(game, profile.id, friendIds),
+          nudgeable: canNudge(game, profile.id, now),
         };
       })
       .sort((a, b) => (a.game.updated_at < b.game.updated_at ? 1 : -1));
-  }, [games, profile.id, friendIds]);
+  }, [games, profile.id, friendIds, now]);
 
   const yourTurn = views.filter((v) => v.game.status === "active" && v.myTurn);
   const theirTurn = views.filter((v) => v.game.status === "active" && !v.myTurn);
@@ -80,6 +96,41 @@ export function GameList() {
     } catch {
       setRematching(null);
     }
+  }
+
+  function showToast(message: string) {
+    setToast(message);
+    setTimeout(() => setToast(null), 2000);
+  }
+
+  async function nudge(view: View) {
+    if (nudging) return;
+    setNudging(view.game.id);
+    try {
+      const api = await getApi();
+      const { opponent_push } = await api.nudge(view.game.id);
+      if (opponent_push.likely_receiving) {
+        showToast(`Nudged @${view.opponentName}!`);
+      } else {
+        // They probably won't see the push — offer the share-sheet backup.
+        setNudgeFallback(view);
+      }
+    } catch {
+      // Benign races only (another device already nudged / clock skew): the
+      // synced nudge timestamp will hide the button momentarily.
+    } finally {
+      setNudging(null);
+    }
+  }
+
+  async function shareNudge(view: View) {
+    const result = await shareOrCopy({
+      title: "Wordplay",
+      text: "Your move in our Wordplay game!",
+      url: `${window.location.origin}/games/${view.game.id}`,
+    });
+    setNudgeFallback(null);
+    if (result === "copied") showToast("Link copied!");
   }
 
   return (
@@ -110,13 +161,41 @@ export function GameList() {
         {isLoading && <Spinner />}
 
         <Section title="Your turn" views={yourTurn} accent />
-        <Section title="Their turn" views={theirTurn} />
+        <Section title="Their turn" views={theirTurn} onNudge={nudge} nudging={nudging} />
         <Section title="Finished" views={finished} finished onRematch={rematch} rematching={rematching} />
 
         {!isLoading && views.length === 0 && (
           <p className="empty-state">No games yet. Start one!</p>
         )}
       </div>
+
+      {nudgeFallback && (
+        <Dialog
+          title="Nudge sent"
+          onClose={() => setNudgeFallback(null)}
+          actions={
+            <>
+              <button className="btn btn-ghost" onClick={() => setNudgeFallback(null)}>
+                Done
+              </button>
+              <button className="btn btn-primary" onClick={() => shareNudge(nudgeFallback)}>
+                Text them
+              </button>
+            </>
+          }
+        >
+          <p className="muted">
+            @{nudgeFallback.opponentName} doesn't seem to be getting notifications — send them the game link
+            directly.
+          </p>
+        </Dialog>
+      )}
+
+      {toast && (
+        <div className="share-toast-wrap">
+          <Toast tone="success">{toast}</Toast>
+        </div>
+      )}
     </div>
   );
 }
@@ -128,6 +207,8 @@ function Section({
   finished,
   onRematch,
   rematching,
+  onNudge,
+  nudging,
 }: {
   title: string;
   views: View[];
@@ -135,6 +216,8 @@ function Section({
   finished?: boolean;
   onRematch?: (view: View) => void;
   rematching?: string | null;
+  onNudge?: (view: View) => void;
+  nudging?: string | null;
 }) {
   if (views.length === 0) return null;
   return (
@@ -183,7 +266,22 @@ function Section({
               ) : v.myTurn ? (
                 <span className="badge badge-accent">Your move</span>
               ) : (
-                <span className="badge badge-muted">Waiting</span>
+                <>
+                  <span className="badge badge-muted">Waiting</span>
+                  {v.nudgeable && onNudge && (
+                    <button
+                      className="btn btn-ghost nudge-btn"
+                      disabled={nudging !== null}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        onNudge(v);
+                      }}
+                    >
+                      {nudging === v.game.id ? "Nudging…" : "Nudge"}
+                    </button>
+                  )}
+                </>
               )}
             </div>
           </Link>

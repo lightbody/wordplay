@@ -34,6 +34,8 @@ export interface Game {
   winner_id: string | null;
   creator_adjustment: number;
   opponent_adjustment: number;
+  creator_last_nudge_at: string | null;
+  opponent_last_nudge_at: string | null;
   created_at: string;
   updated_at: string;
   [key: string]: unknown;

@@ -750,7 +750,8 @@ textarea {
   align-items: flex-end;
   gap: 0.35rem;
 }
-.rematch-btn {
+.rematch-btn,
+.nudge-btn {
   padding: 4px 10px;
   color: var(--accent);
   font: var(--text-label);

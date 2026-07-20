@@ -51,6 +51,8 @@ function makeGame(overrides: Partial<Game>): Game {
     winner_id: null,
     creator_adjustment: 0,
     opponent_adjustment: 0,
+    creator_last_nudge_at: null,
+    opponent_last_nudge_at: null,
     created_at: "",
     updated_at: "",
     ...overrides,

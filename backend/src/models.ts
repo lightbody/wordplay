@@ -14,6 +14,10 @@ export interface User {
   avatar_emoji: string;
   avatar_color: string;
   created_at: string;
+  /** Last successful push-subscription registration; null if never enabled. */
+  push_enabled_at: string | null;
+  /** Last app open via a notification tap; null if never. */
+  push_opened_at: string | null;
 }
 
 export interface Game {
@@ -46,6 +50,8 @@ export interface Game {
   winner_id: string | null;
   creator_adjustment: number;
   opponent_adjustment: number;
+  creator_last_nudge_at: string | null;
+  opponent_last_nudge_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -74,7 +80,7 @@ export const GAME_COLUMNS =
   "pending_opponent_avatar_emoji, pending_opponent_avatar_color, current_player_id, deduct_unused, board, tiles_remaining, " +
   "creator_rack_count, opponent_rack_count, creator_score, opponent_score, move_count, " +
   "scoreless_streak, final_moves_remaining, ended_reason, winner_id, creator_adjustment, " +
-  "opponent_adjustment, created_at, updated_at";
+  "opponent_adjustment, creator_last_nudge_at, opponent_last_nudge_at, created_at, updated_at";
 
 export const MOVE_COLUMNS =
   "id, game_id, user_id, move_number, move_type, tiles, words, swap_count, score, rating, best_score, created_at";

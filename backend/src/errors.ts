@@ -33,6 +33,9 @@ export class AppError extends Error {
   static unauthorized(message: string): AppError {
     return new AppError(401, message);
   }
+  static tooManyRequests(code: string, detail?: Record<string, unknown>): AppError {
+    return new AppError(429, code, detail);
+  }
   static upstream(): AppError {
     return new AppError(502, "upstream_error");
   }

@@ -51,6 +51,13 @@ export interface GameDetail {
   moves: Move[];
 }
 
+/** The nudged opponent's push health, for the share-sheet backup decision. */
+export interface OpponentPush {
+  subscriptions: number;
+  last_signal_at: string | null;
+  likely_receiving: boolean;
+}
+
 export function createApi(token: string) {
   return {
     getMe: () => request<Profile>("/me", token),
@@ -102,6 +109,9 @@ export function createApi(token: string) {
         body: JSON.stringify({ type: "resign" }),
       }),
 
+    nudge: (id: string) =>
+      request<{ game: Game; opponent_push: OpponentPush }>(`/games/${id}/nudge`, token, { method: "POST" }),
+
     createInvite: (id: string) =>
       request<{ token: string; url: string }>(`/games/${id}/invites`, token, { method: "POST" }),
 
@@ -121,6 +131,8 @@ export function createApi(token: string) {
         method: "DELETE",
         body: JSON.stringify({ endpoint }),
       }),
+
+    reportPushOpened: () => request<void>("/me/push-opened", token, { method: "POST" }),
 
     getFriendLink: () => request<{ token: string; url: string }>("/friends/link", token),
 
