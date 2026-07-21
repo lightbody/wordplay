@@ -54,18 +54,28 @@ self.addEventListener("push", (event) => {
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
   const url = new URL(event.notification.data?.url ?? "/", self.location.origin).href;
+  // "This open came from a push tap" marker: the app reports it to the
+  // backend (a push-freshness signal) and strips the param. Fresh loads get
+  // the query param — a postMessage would race the page's listener
+  // registration — while an already-running exact-match client gets a
+  // postMessage instead, since navigating it would reload the SPA.
+  const marked = new URL(url);
+  marked.searchParams.set("src", "push");
 
   event.waitUntil(
     self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clients) => {
       for (const client of clients) {
-        if (client.url === url && "focus" in client) return client.focus();
+        if (client.url === url && "focus" in client) {
+          client.postMessage({ type: "push-open" });
+          return client.focus();
+        }
       }
       // No exact-URL match: reuse an already-open tab by navigating it,
       // rather than piling up new windows for a standalone-mode PWA.
       for (const client of clients) {
-        if ("focus" in client && "navigate" in client) return client.focus().then(() => client.navigate(url));
+        if ("focus" in client && "navigate" in client) return client.focus().then(() => client.navigate(marked.href));
       }
-      return self.clients.openWindow(url);
+      return self.clients.openWindow(marked.href);
     }),
   );
 });

@@ -42,6 +42,21 @@ export function registerPushRoutes(app: FastifyInstance, ctx: AppContext): void 
       [userId, sub.endpoint, sub.keys.p256dh, sub.keys.auth],
     );
 
+    // Freshness signal for "is this user likely receiving pushes" (nudges
+    // use it to decide whether to offer a share-sheet backup).
+    await ctx.pool.query("UPDATE users SET push_enabled_at = now() WHERE id = $1", [userId]);
+
+    return reply.status(204).send();
+  });
+
+  /**
+   * The app reports that this open came from tapping a push notification
+   * (the service worker marks the navigation). The other half of the
+   * push-freshness signal.
+   */
+  app.post("/me/push-opened", async (req, reply) => {
+    const userId = await authenticate(ctx, req);
+    await ctx.pool.query("UPDATE users SET push_opened_at = now() WHERE id = $1", [userId]);
     return reply.status(204).send();
   });
 

@@ -69,6 +69,34 @@ function AuthedApp() {
     else navigator.clearAppBadge().catch(() => {});
   }, [games, profile]);
 
+  useEffect(() => {
+    // Push-open tracking (a push-freshness signal the nudge flow uses). The
+    // service worker marks notification-tap opens two ways: ?src=push on a
+    // fresh load/navigation, or a postMessage to an already-running client.
+    // Reporting is fire-and-forget — it must never disturb the app.
+    const report = () => {
+      getAccessToken()
+        .then((t) => createApi(t).reportPushOpened())
+        .catch(() => {});
+    };
+
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("src") === "push") {
+      params.delete("src");
+      const rest = params.toString();
+      // replaceState (not the router) strips the param without a navigation;
+      // routes only match on pathname, so it never affected routing anyway.
+      window.history.replaceState(null, "", window.location.pathname + (rest ? `?${rest}` : "") + window.location.hash);
+      report();
+    }
+
+    const onMessage = (e: MessageEvent) => {
+      if ((e.data as { type?: string } | null)?.type === "push-open") report();
+    };
+    navigator.serviceWorker?.addEventListener("message", onMessage);
+    return () => navigator.serviceWorker?.removeEventListener("message", onMessage);
+  }, [getAccessToken]);
+
   if (profile === undefined) return <Spinner full />;
 
   return (
