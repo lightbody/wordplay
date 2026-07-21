@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import { useAuth } from "@workos-inc/authkit-react";
 import { ApiError, createApi } from "./api";
+import { useReturnPathRedirect } from "./authReturn";
 import { yourTurnCount } from "./gameList";
 import { ProfileContext } from "./profile";
 import { useGamesShape } from "./shapes";
@@ -19,6 +20,10 @@ import { Spinner } from "./components/Spinner";
 
 export default function App() {
   const { isLoading, user } = useAuth();
+  // Every sign-in redirect lands back on "/" (see main.tsx); send deep-link
+  // visitors (shared game links, /invite/:token, /friend/:token) back to
+  // where they actually started.
+  useReturnPathRedirect(user, isLoading);
 
   if (isLoading) {
     return <Spinner full />;
