@@ -27,13 +27,14 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <ThemeProvider>
       <SoundProvider>
-        {/* Preserve the current path (not just the origin) so signing in from
-            a deep link like /friend/:token or /invite/:token returns the user
-            to that same page to complete the accept, instead of dropping them
-            on "/" and losing the pending token. */}
+        {/* WorkOS validates redirect_uri as an exact string against a fixed
+            allowlist (no path wildcards), so this must stay pinned to the
+            bare origin -- see authReturn.ts for how deep links (shared game
+            links, /invite/:token, /friend/:token) still return the user to
+            where they started after signing in. */}
         <AuthKitProvider
           clientId={clientId}
-          redirectUri={window.location.origin + window.location.pathname}
+          redirectUri={window.location.origin}
           devMode={true}
         >
           <BrowserRouter>

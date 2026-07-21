@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "@workos-inc/authkit-react";
 import { ApiError, BASE, createApi } from "../api";
+import { saveReturnPath } from "../authReturn";
 import { Spinner } from "../components/Spinner";
 
 const PENDING_INVITE_KEY = "wordplay:pendingInvite";
@@ -96,6 +97,7 @@ export function InviteAccept() {
           className="btn btn-primary btn-lg"
           onClick={() => {
             if (token) sessionStorage.setItem(PENDING_INVITE_KEY, token);
+            saveReturnPath();
             signIn();
           }}
         >
